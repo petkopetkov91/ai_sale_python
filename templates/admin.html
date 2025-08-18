@@ -8,51 +8,53 @@
         :root {
             --peugeot-blue: #003da5;
             --light-grey: #f4f6f8;
-            --border-grey: #ddd;
-            --text-dark: #333;
+            --border-grey: #e9ecef;
+            --text-dark: #343a40;
             --text-light: #fff;
             --danger-red: #dc3545;
             --success-green: #28a745;
+            --white: #fff;
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--light-grey);
+            color: var(--text-dark);
             margin: 0;
             padding: 2rem;
         }
         .container {
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
-            background-color: #fff;
-            padding: 2rem;
+            background-color: var(--white);
+            padding: 2.5rem;
             border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
         }
-        h1 {
+        h1, h2 {
             color: var(--peugeot-blue);
-            border-bottom: 2px solid var(--peugeot-blue);
-            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border-grey);
+            padding-bottom: 0.75rem;
             margin-top: 0;
         }
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+        }
         .section {
-            margin-bottom: 2rem;
-        }
-        #upload-form {
-            display: flex;
-            gap: 1rem;
-            align-items: center;
-        }
-        #file-input {
-            flex-grow: 1;
+            margin-bottom: 2.5rem;
         }
         .btn {
-            padding: 0.75rem 1.25rem;
+            padding: 0.6rem 1.25rem;
             border: none;
             border-radius: 8px;
-            font-size: 1em;
+            font-size: 0.95em;
             font-weight: 500;
             cursor: pointer;
-            transition: background-color 0.2s, opacity 0.2s;
+            transition: all 0.2s ease-in-out;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
         }
         .btn-primary {
             background-color: var(--peugeot-blue);
@@ -60,56 +62,100 @@
         }
         .btn-primary:hover {
             background-color: #002c8f;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0, 61, 165, 0.2);
         }
         .btn-primary:disabled {
-            opacity: 0.6;
+            background-color: #a1a1a1;
             cursor: not-allowed;
-        }
-        #file-list-container {
-            margin-top: 1rem;
-        }
-        .file-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 1rem;
-            border: 1px solid var(--border-grey);
-            border-radius: 8px;
-            margin-bottom: 0.5rem;
-        }
-        .file-info {
-            display: flex;
-            flex-direction: column;
-        }
-        .file-info .filename {
-            font-weight: 600;
-        }
-        .file-info .file-date {
-            font-size: 0.8em;
-            color: #6c757d;
+            transform: none;
+            box-shadow: none;
         }
         .btn-danger {
             background-color: var(--danger-red);
             color: var(--text-light);
+            font-size: 0.85em;
         }
         .btn-danger:hover {
             background-color: #c82333;
+        }
+        #upload-form {
+            background-color: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-grey);
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        #file-input-wrapper {
+            position: relative;
+            flex-grow: 1;
+        }
+        #file-input {
+            opacity: 0;
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        .file-input-label {
+            background-color: var(--white);
+            border: 2px dashed var(--border-grey);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            text-align: center;
+            transition: border-color 0.2s;
+        }
+        #file-input:hover + .file-input-label,
+        #file-input:focus + .file-input-label {
+            border-color: var(--peugeot-blue);
+        }
+        #file-list-header {
+            display: grid;
+            grid-template-columns: 3fr 1fr 1fr;
+            font-weight: 600;
+            padding: 0.5rem 1rem;
+            border-bottom: 2px solid var(--border-grey);
+            color: #6c757d;
+        }
+        .file-item {
+            display: grid;
+            grid-template-columns: 3fr 1fr 1fr;
+            align-items: center;
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-grey);
+            transition: background-color 0.2s;
+        }
+        .file-item:hover {
+            background-color: #f8f9fa;
+        }
+        .file-item:last-child {
+            border-bottom: none;
+        }
+        .file-info .filename {
+            font-weight: 500;
+            word-break: break-all;
         }
         #status-message {
             padding: 1rem;
             border-radius: 8px;
             margin-top: 1rem;
             display: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        #status-message.show {
+            display: block;
+            opacity: 1;
         }
         #status-message.success {
             background-color: #d4edda;
             color: #155724;
-            display: block;
         }
         #status-message.error {
             background-color: #f8d7da;
             color: #721c24;
-            display: block;
         }
         .nav-link {
             display: inline-block;
@@ -131,19 +177,27 @@
         <div class="section">
             <h2>Качване на нов файл</h2>
             <form id="upload-form">
-                <input type="file" id="file-input" name="file" required>
+                <div id="file-input-wrapper">
+                    <input type="file" id="file-input" name="file" required>
+                    <div class="file-input-label" id="file-input-label-text">Натиснете, за да изберете файл...</div>
+                </div>
                 <button type="submit" id="upload-btn" class="btn btn-primary">Качи</button>
             </form>
         </div>
 
+        <div id="status-message"></div>
+
         <div class="section">
             <h2>Списък с качени файлове</h2>
+            <div id="file-list-header">
+                <span>Име на файл</span>
+                <span>Дата на качване</span>
+                <span>Действия</span>
+            </div>
             <div id="file-list-container">
                 <p>Зареждане...</p>
             </div>
         </div>
-
-        <div id="status-message"></div>
     </div>
 
     <script>
@@ -151,17 +205,25 @@
             const uploadForm = document.getElementById('upload-form');
             const uploadBtn = document.getElementById('upload-btn');
             const fileInput = document.getElementById('file-input');
+            const fileInputLabelText = document.getElementById('file-input-label-text');
             const fileListContainer = document.getElementById('file-list-container');
             const statusMessage = document.getElementById('status-message');
 
             const showStatus = (message, type) => {
                 statusMessage.textContent = message;
-                statusMessage.className = type;
+                statusMessage.className = `show ${type}`;
                 setTimeout(() => {
-                    statusMessage.style.display = 'none';
                     statusMessage.className = '';
                 }, 5000);
             };
+
+            fileInput.addEventListener('change', () => {
+                if (fileInput.files.length > 0) {
+                    fileInputLabelText.textContent = fileInput.files[0].name;
+                } else {
+                    fileInputLabelText.textContent = 'Натиснете, за да изберете файл...';
+                }
+            });
 
             const loadFiles = async () => {
                 fileListContainer.innerHTML = '<p>Зареждане...</p>';
@@ -175,23 +237,24 @@
 
                     fileListContainer.innerHTML = '';
                     if (files.length === 0) {
-                        fileListContainer.innerHTML = '<p>Няма качени файлове.</p>';
+                        fileListContainer.innerHTML = '<p style="padding: 1rem;">Няма качени файлове.</p>';
                     } else {
+                        files.sort((a, b) => b.created_at - a.created_at);
                         files.forEach(file => {
                             const item = document.createElement('div');
                             item.className = 'file-item';
                             item.innerHTML = `
                                 <div class="file-info">
                                     <span class="filename">${file.filename}</span>
-                                    <span class="file-date">Качен на: ${new Date(file.created_at * 1000).toLocaleString()}</span>
                                 </div>
+                                <span>${new Date(file.created_at * 1000).toLocaleDateString()}</span>
                                 <button class="btn btn-danger" data-file-id="${file.id}">Изтрий</button>
                             `;
                             fileListContainer.appendChild(item);
                         });
                     }
                 } catch (error) {
-                    fileListContainer.innerHTML = `<p style="color: red;">${error.message}</p>`;
+                    fileListContainer.innerHTML = `<p style="padding: 1rem; color: red;">${error.message}</p>`;
                 }
             };
 
@@ -199,6 +262,8 @@
                 if (e.target.matches('.btn-danger')) {
                     const fileId = e.target.dataset.fileId;
                     if (confirm('Сигурни ли сте, че искате да изтриете този файл? Това действие е необратимо.')) {
+                        e.target.disabled = true;
+                        e.target.textContent = 'Триене...';
                         try {
                             const response = await fetch(`/api/vector-store/files/${fileId}`, { method: 'DELETE' });
                             if (!response.ok) {
@@ -209,6 +274,8 @@
                             loadFiles();
                         } catch (error) {
                             showStatus(error.message, 'error');
+                            e.target.disabled = false;
+                            e.target.textContent = 'Изтрий';
                         }
                     }
                 }
@@ -241,6 +308,7 @@
                     const result = await response.json();
                     showStatus(`Файлът "${result.filename}" е успешно качен.`, 'success');
                     uploadForm.reset();
+                    fileInputLabelText.textContent = 'Натиснете, за да изберете файл...';
                     loadFiles();
                 } catch (error) {
                     showStatus(error.message, 'error');
