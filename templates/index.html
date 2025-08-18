@@ -5,200 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Peugeot Stock Assistant</title>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background-color: #f4f6f8;
-            margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
-        #chat-container {
-            width: 90%;
-            max-width: 800px;
-            height: 80vh;
-            background-color: #fff;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        #chat-header {
-            background-color: #003da5; /* Peugeot Blue */
-            color: white;
-            padding: 16px;
-            text-align: center;
-            font-size: 1.2em;
-            font-weight: bold;
-        }
-        #chat-box {
-            flex-grow: 1;
-            padding: 20px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-        .message {
-            padding: 10px 15px;
-            border-radius: 18px;
-            max-width: 80%;
-            line-height: 1.5;
-        }
-        .user-message {
-            background-color: #e9e9eb;
-            color: #000;
-            align-self: flex-end;
-        }
-        .assistant-message {
-            background-color: #f0f0f0;
-            color: #333;
-            align-self: flex-start;
-            width: 100%;
-            max-width: 100%;
-            box-sizing: border-box;
-        }
-        .assistant-message.loading {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            max-width: 80%;
-        }
-        .typing-indicator span {
-            height: 8px;
-            width: 8px;
-            background-color: #003da5;
-            border-radius: 50%;
-            display: inline-block;
-            animation: bounce 1.4s infinite ease-in-out both;
-        }
-        .typing-indicator span:nth-child(2) { animation-delay: 0.16s; }
-        .typing-indicator span:nth-child(3) { animation-delay: 0.32s; }
-        @keyframes bounce {
-            0%, 80%, 100% { transform: scale(0); }
-            40% { transform: scale(1.0); }
-        }
-        #chat-input-container {
-            display: flex;
-            border-top: 1px solid #ddd;
-            padding: 15px;
-        }
-        #chat-input {
-            flex-grow: 1;
-            border: 1px solid #ccc;
-            border-radius: 20px;
-            padding: 10px 15px;
-            font-size: 1em;
-            outline: none;
-        }
-        #chat-input:focus {
-            border-color: #003da5;
-        }
-        #send-button {
-            background-color: #003da5;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 44px;
-            height: 44px;
-            margin-left: 10px;
-            cursor: pointer;
-            font-size: 1.5em;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        #send-button:hover {
-            background-color: #002c8f;
-        }
-        .cars-container {
-            margin-top: 15px;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-            gap: 15px;
-        }
-        .car-card {
-            background: white;
-            border: 1px solid #e0e0e0;
-            border-radius: 12px;
-            padding: 0;
-            overflow: hidden;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .car-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-        }
-        .car-image {
-            width: 100%;
-            height: 200px;
-            object-fit: cover;
-            display: block;
-            background-color: #f8f9fa;
-        }
-        .car-image.no-image {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 1.1em;
-            font-weight: 500;
-        }
-        .car-content {
-            padding: 15px;
-        }
-        .car-title {
-            margin: 0 0 8px 0;
-            font-size: 1.2em;
-            font-weight: 600;
-            color: #333;
-            line-height: 1.3;
-        }
-        .car-price {
-            margin: 0 0 15px 0;
-            font-size: 1.1em;
-            font-weight: bold;
-            color: #003da5;
-        }
-        .availability-badge {
-            display: inline-block;
-            background-color: #4CAF50;
-            color: white;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.85em;
-            font-weight: 500;
-            margin-bottom: 15px;
-        }
-        .view-details-btn {
-            display: inline-block;
-            background: linear-gradient(45deg, #4C8AFF, #003da5);
-            color: white;
-            text-decoration: none;
-            padding: 12px 24px;
-            border-radius: 6px;
-            font-size: 0.95em;
-            font-weight: 500;
-            transition: all 0.2s;
-            text-align: center;
-            width: 100%;
-            box-sizing: border-box;
-        }
-        .view-details-btn:hover {
-            background: linear-gradient(45deg, #3A7AFF, #002c8f);
-            transform: translateY(-1px);
-        }
-        .cars-header {
-            font-size: 1.1em;
-            font-weight: 600;
-            margin-bottom: 10px;
-            color: #333;
-        }
-
         :root {
             --peugeot-blue: #003da5;
             --light-grey: #f4f6f8;
@@ -207,15 +13,30 @@
             --text-light: #fff;
         }
         body {
-            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--light-grey);
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 16px;
+            box-sizing: border-box;
         }
         #app-container {
+            width: 100%;
+            max-width: 1200px;
+            height: 95vh;
+            background-color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
             display: flex;
-            height: 100%;
+            overflow: hidden;
         }
         #sidebar {
             width: 280px;
-            background-color: #e9ecef;
+            min-width: 280px;
+            background-color: #f8f9fa;
             border-right: 1px solid var(--border-grey);
             display: flex;
             flex-direction: column;
@@ -224,6 +45,7 @@
         #sidebar-header {
             padding: 16px;
             border-bottom: 1px solid var(--border-grey);
+            flex-shrink: 0;
         }
         #new-chat-btn {
             background-color: var(--peugeot-blue);
@@ -259,10 +81,10 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            transition: background-color 0.2s;
+            transition: background-color 0.2s, color 0.2s;
         }
         .thread-item:hover {
-            background-color: #d4d9de;
+            background-color: #e9ecef;
         }
         .thread-item.active {
             background-color: var(--peugeot-blue);
@@ -271,19 +93,143 @@
         }
         #chat-container {
             flex-grow: 1;
+            background-color: #fff;
             display: flex;
             flex-direction: column;
             height: 100%;
-            max-height: 100vh;
-            width: 100%;
         }
         #chat-header {
+            background-color: var(--peugeot-blue);
+            color: white;
+            padding: 16px;
+            text-align: center;
+            font-size: 1.2em;
+            font-weight: bold;
             flex-shrink: 0;
+        }
+        #chat-box {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .message {
+            padding: 10px 15px;
+            border-radius: 18px;
+            max-width: 80%;
+            line-height: 1.5;
+        }
+        .user-message {
+            background-color: #e9e9eb;
+            color: #000;
+            align-self: flex-end;
+        }
+        .assistant-message {
+            background-color: #f0f0f0;
+            color: var(--text-dark);
+            align-self: flex-start;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+        .assistant-message.loading {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            max-width: 80%;
+        }
+        .typing-indicator span {
+            height: 8px;
+            width: 8px;
+            background-color: var(--peugeot-blue);
+            border-radius: 50%;
+            display: inline-block;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.16s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.32s; }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1.0); }
         }
         #chat-input-container {
+            display: flex;
+            border-top: 1px solid var(--border-grey);
+            padding: 15px;
             flex-shrink: 0;
         }
-
+        #chat-input {
+            flex-grow: 1;
+            border: 1px solid #ccc;
+            border-radius: 20px;
+            padding: 10px 15px;
+            font-size: 1em;
+            outline: none;
+        }
+        #chat-input:focus {
+            border-color: var(--peugeot-blue);
+        }
+        #send-button {
+            background-color: var(--peugeot-blue);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            margin-left: 10px;
+            cursor: pointer;
+            font-size: 1.5em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #send-button:hover {
+            background-color: #002c8f;
+        }
+        .cars-container {
+            margin-top: 15px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+        }
+        .car-card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 0;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .car-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        }
+        .car-image {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+            display: block;
+            background-color: #f8f9fa;
+        }
+        .car-image.no-image {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.1em;
+            font-weight: 500;
+        }
+        .car-content { padding: 15px; }
+        .car-title { margin: 0 0 8px 0; font-size: 1.1em; font-weight: 600; color: #333; line-height: 1.3; }
+        .car-price { margin: 0 0 15px 0; font-size: 1em; font-weight: bold; color: var(--peugeot-blue); }
+        .availability-badge { display: inline-block; background-color: #4CAF50; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.8em; font-weight: 500; margin-bottom: 12px; }
+        .view-details-btn { display: block; background: linear-gradient(45deg, #4C8AFF, var(--peugeot-blue)); color: white; text-decoration: none; padding: 10px 20px; border-radius: 6px; font-size: 0.9em; font-weight: 500; transition: all 0.2s; text-align: center; }
+        .view-details-btn:hover { background: linear-gradient(45deg, #3A7AFF, #002c8f); transform: translateY(-1px); }
+        .cars-header { font-size: 1.1em; font-weight: 600; margin-bottom: 10px; color: var(--text-dark); }
     </style>
 </head>
 <body>
@@ -389,7 +335,7 @@
 
                     if (data.is_new_thread) {
                         threadId = data.thread_id;
-                        await loadThreads(); // Refresh sidebar and select the new thread
+                        await loadThreads();
                     } else {
                         threadId = data.thread_id;
                     }
@@ -415,7 +361,7 @@
                     const threads = await response.json();
 
                     const groupedThreads = groupThreadsByDate(threads);
-                    threadList.innerHTML = ''; // Clear existing list
+                    threadList.innerHTML = '';
 
                     for (const group in groupedThreads) {
                         const header = document.createElement('div');
@@ -466,7 +412,6 @@
                     }
                 });
 
-                // Clean up empty groups
                 for (const group in groups) {
                     if (groups[group].length === 0) {
                         delete groups[group];
@@ -492,7 +437,10 @@
 
                     chatBox.removeChild(loading);
                     messages.forEach(msg => {
-                        addMessage(msg.content, msg.role);
+                        // This logic needs to be updated when Supabase is integrated
+                        // to handle the `is_user` flag instead of `role`.
+                        const role = msg.is_user ? 'user' : 'assistant';
+                        addMessage(msg.content, role);
                     });
                 } catch (error) {
                     console.error('Error loading messages:', error);

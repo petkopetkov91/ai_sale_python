@@ -8,35 +8,22 @@ from dotenv import load_dotenv
 import json
 import traceback
 import re
-import datetime
-import threading
+from supabase import create_client, Client
 
 # Load environment variables
 load_dotenv()
 
-# Initialize Flask app and OpenAI client
+# --- Initialize Clients ---
 app = Flask(__name__)
+
+# OpenAI Client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 ASSISTANT_ID = os.getenv("OPENAI_ASSISTANT_ID")
 
-# For persisting threads
-THREADS_FILE = "threads.json"
-file_lock = threading.Lock()
-
-def _save_thread(thread_id):
-    with file_lock:
-        try:
-            with open(THREADS_FILE, 'r+') as f:
-                threads = json.load(f)
-                # Avoid duplicates
-                if not any(t['id'] == thread_id for t in threads):
-                    threads.append({"id": thread_id, "created_at": datetime.datetime.utcnow().isoformat()})
-                    f.seek(0)
-                    json.dump(threads, f, indent=2)
-        except (FileNotFoundError, json.JSONDecodeError):
-            # If file doesn't exist or is empty/corrupt, create a new one
-            with open(THREADS_FILE, 'w') as f:
-                json.dump([{"id": thread_id, "created_at": datetime.datetime.utcnow().isoformat()}], f, indent=2)
+# Supabase Client
+supabase_url = os.getenv("SUPABASE_URL")
+supabase_key = os.getenv("SUPABASE_KEY")
+supabase: Client = create_client(supabase_url, supabase_key)
 
 
 def parse_price(price_str):
@@ -101,50 +88,48 @@ def index():
 
 @app.route('/api/threads', methods=['GET'])
 def get_threads():
-    with file_lock:
-        try:
-            with open(THREADS_FILE, 'r') as f:
-                threads_data = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            return jsonify([])
+    try:
+        response = supabase.table('chat_sessions').select('session_id, created_at').order('created_at', desc=True).execute()
+        sessions = response.data
 
-    threads_with_titles = []
-    for thread_info in sorted(threads_data, key=lambda x: x['created_at'], reverse=True):
-        try:
-            # Fetch the first message to use as a title
-            messages = client.beta.threads.messages.list(thread_id=thread_info['id'], order="asc", limit=1)
-            first_message = messages.data[0].content[0].text.value if messages.data else "New Chat"
-            threads_with_titles.append({
-                "id": thread_info['id'],
-                "title": first_message,
-                "created_at": thread_info['created_at']
-            })
-        except Exception as e:
-            print(f"Could not retrieve title for thread {thread_info['id']}: {e}")
-            # Still add it to the list so user can access it
-            threads_with_titles.append({
-                "id": thread_info['id'],
-                "title": "Untitled Chat",
-                "created_at": thread_info['created_at']
-            })
+        threads_with_titles = []
+        for session in sessions:
+            try:
+                msg_response = supabase.table('chat_messages').select('message').eq('session_id', session['session_id']).eq('is_user', True).order('created_at', desc=False).limit(1).execute()
+                first_message = msg_response.data[0]['message'] if msg_response.data else "Нов чат"
 
-    return jsonify(threads_with_titles)
+                threads_with_titles.append({
+                    "id": session['session_id'],
+                    "title": first_message,
+                    "created_at": session['created_at']
+                })
+            except Exception as e:
+                print(f"Could not retrieve title for thread {session['session_id']}: {e}")
+                threads_with_titles.append({
+                    "id": session['session_id'],
+                    "title": "Грешка при зареждане",
+                    "created_at": session['created_at']
+                })
+        return jsonify(threads_with_titles)
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": "Failed to retrieve threads from database."}), 500
 
 @app.route('/api/threads/<string:thread_id>/messages', methods=['GET'])
 def get_thread_messages(thread_id):
     try:
-        messages = client.beta.threads.messages.list(thread_id=thread_id, order="asc")
+        response = supabase.table('chat_messages').select('message, is_user').eq('session_id', thread_id).order('created_at', desc=False).execute()
 
-        response_messages = []
-        for msg in messages.data:
-            # The API might return multiple content blocks, but we only handle the first text block
-            content = msg.content[0].text.value if msg.content and hasattr(msg.content[0], 'text') else ""
-            response_messages.append({"role": msg.role, "content": content})
-
-        return jsonify(response_messages)
+        formatted_messages = []
+        for msg in response.data:
+            formatted_messages.append({
+                "role": "user" if msg['is_user'] else "assistant",
+                "content": msg['message']
+            })
+        return jsonify(formatted_messages)
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"error": "Failed to retrieve messages."}), 500
+        return jsonify({"error": "Failed to retrieve messages from database."}), 500
 
 @app.route('/chat', methods=['POST'])
 def chat():
@@ -157,61 +142,53 @@ def chat():
         if is_new_thread:
             thread = client.beta.threads.create()
             thread_id = thread.id
-            _save_thread(thread_id)
+            supabase.table('chat_sessions').insert({"session_id": thread_id}).execute()
 
         client.beta.threads.messages.create(thread_id=thread_id, role="user", content=user_message)
+        supabase.table('chat_messages').insert({"session_id": thread_id, "message": user_message, "is_user": True}).execute()
+
         run = client.beta.threads.runs.create(assistant_id=ASSISTANT_ID, thread_id=thread_id)
-        print(f"DEBUG: Created run {run.id}. Waiting...")
 
         while run.status in ['queued', 'in_progress', 'requires_action']:
             run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
-            print(f"DEBUG: Current run status: {run.status}")
-
             if run.status == 'requires_action':
                 tool_call = run.required_action.submit_tool_outputs.tool_calls[0]
                 if tool_call.function.name == "get_available_cars":
-                    
-                    # 1. Get the actual car data
                     arguments = json.loads(tool_call.function.arguments)
-                    model_name = arguments.get('model_filter')
-                    car_data_result = get_available_cars(model_filter=model_name)
+                    car_data_result = get_available_cars(model_filter=arguments.get('model_filter'))
                     
-                    # 2. Submit a simple confirmation to OpenAI to close the run
-                    try:
-                        client.beta.threads.runs.submit_tool_outputs(
-                            thread_id=thread_id,
-                            run_id=run.id,
-                            tool_outputs=[{
-                                "tool_call_id": tool_call.id,
-                                "output": f"Function executed. Found {len(car_data_result['cars'])} cars."
-                            }]
-                        )
-                    except Exception as e:
-                        print(f"WARNING: Could not submit dummy tool output to close run: {e}")
+                    # Save summary to DB before returning
+                    supabase.table('chat_messages').insert({"session_id": thread_id, "message": car_data_result['summary'], "is_user": False}).execute()
 
-                    # 3. Immediately return the real data to the frontend
+                    client.beta.threads.runs.submit_tool_outputs(
+                        thread_id=thread_id,
+                        run_id=run.id,
+                        tool_outputs=[{"tool_call_id": tool_call.id, "output": f"Function executed. Found {len(car_data_result['cars'])} cars."}]
+                    )
+
                     return jsonify({
                         "response": car_data_result['summary'],
                         "cars": car_data_result['cars'],
-                        "thread_id": thread_id
+                        "thread_id": thread_id,
+                        "is_new_thread": is_new_thread
                     })
-            
             time.sleep(1)
 
-        # This part handles general queries (from Retrieval)
         if run.status == 'completed':
             messages = client.beta.threads.messages.list(thread_id=thread_id, order="desc", limit=1)
             response_text = messages.data[0].content[0].text.value
+
+            supabase.table('chat_messages').insert({"session_id": thread_id, "message": response_text, "is_user": False}).execute()
+
             return jsonify({"response": response_text, "thread_id": thread_id, "is_new_thread": is_new_thread})
         else:
-            return jsonify({"response": f"Грешка: Обработката спря със статус '{run.status}'.", "thread_id": thread_id, "is_new_thread": is_new_thread})
+            error_message = f"Грешка: Обработката спря със статус '{run.status}'."
+            return jsonify({"response": error_message, "thread_id": thread_id, "is_new_thread": is_new_thread})
 
-    except openai.BadRequestError as e:
-        print(f"ERROR: Caught a BadRequestError: {e}")
-        return jsonify({"error": "Системата все още обработва предишната заявка. Моля, изчакайте и опитайте отново."}), 429
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"error": f"Възникна критична грешка на сървъра: {e}"}), 500
+        error_message = f"Възникна критична грешка на сървъра: {e}"
+        return jsonify({"error": error_message}), 500
 
 #if __name__ == '__main__':
- #   app.run(port=5000, debug=True)
+    #app.run(port=5000, debug=True)
