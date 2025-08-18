@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 import json
 import traceback
 import re
+import datetime
+import threading
 
 # Load environment variables
 load_dotenv()
@@ -16,6 +18,26 @@ load_dotenv()
 app = Flask(__name__)
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 ASSISTANT_ID = os.getenv("OPENAI_ASSISTANT_ID")
+
+# For persisting threads
+THREADS_FILE = "threads.json"
+file_lock = threading.Lock()
+
+def _save_thread(thread_id):
+    with file_lock:
+        try:
+            with open(THREADS_FILE, 'r+') as f:
+                threads = json.load(f)
+                # Avoid duplicates
+                if not any(t['id'] == thread_id for t in threads):
+                    threads.append({"id": thread_id, "created_at": datetime.datetime.utcnow().isoformat()})
+                    f.seek(0)
+                    json.dump(threads, f, indent=2)
+        except (FileNotFoundError, json.JSONDecodeError):
+            # If file doesn't exist or is empty/corrupt, create a new one
+            with open(THREADS_FILE, 'w') as f:
+                json.dump([{"id": thread_id, "created_at": datetime.datetime.utcnow().isoformat()}], f, indent=2)
+
 
 def parse_price(price_str):
     """Extracts the price in BGN from a string like '35 858,96 € / 70 134,03 лв.'"""
@@ -77,16 +99,65 @@ def get_available_cars(model_filter=None):
 def index():
     return render_template('index.html')
 
+@app.route('/api/threads', methods=['GET'])
+def get_threads():
+    with file_lock:
+        try:
+            with open(THREADS_FILE, 'r') as f:
+                threads_data = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return jsonify([])
+
+    threads_with_titles = []
+    for thread_info in sorted(threads_data, key=lambda x: x['created_at'], reverse=True):
+        try:
+            # Fetch the first message to use as a title
+            messages = client.beta.threads.messages.list(thread_id=thread_info['id'], order="asc", limit=1)
+            first_message = messages.data[0].content[0].text.value if messages.data else "New Chat"
+            threads_with_titles.append({
+                "id": thread_info['id'],
+                "title": first_message,
+                "created_at": thread_info['created_at']
+            })
+        except Exception as e:
+            print(f"Could not retrieve title for thread {thread_info['id']}: {e}")
+            # Still add it to the list so user can access it
+            threads_with_titles.append({
+                "id": thread_info['id'],
+                "title": "Untitled Chat",
+                "created_at": thread_info['created_at']
+            })
+
+    return jsonify(threads_with_titles)
+
+@app.route('/api/threads/<string:thread_id>/messages', methods=['GET'])
+def get_thread_messages(thread_id):
+    try:
+        messages = client.beta.threads.messages.list(thread_id=thread_id, order="asc")
+
+        response_messages = []
+        for msg in messages.data:
+            # The API might return multiple content blocks, but we only handle the first text block
+            content = msg.content[0].text.value if msg.content and hasattr(msg.content[0], 'text') else ""
+            response_messages.append({"role": msg.role, "content": content})
+
+        return jsonify(response_messages)
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": "Failed to retrieve messages."}), 500
+
 @app.route('/chat', methods=['POST'])
 def chat():
     try:
         data = request.json
         thread_id = data.get("thread_id")
         user_message = data.get("message")
+        is_new_thread = not thread_id
 
-        if not thread_id:
+        if is_new_thread:
             thread = client.beta.threads.create()
             thread_id = thread.id
+            _save_thread(thread_id)
 
         client.beta.threads.messages.create(thread_id=thread_id, role="user", content=user_message)
         run = client.beta.threads.runs.create(assistant_id=ASSISTANT_ID, thread_id=thread_id)
@@ -131,9 +202,9 @@ def chat():
         if run.status == 'completed':
             messages = client.beta.threads.messages.list(thread_id=thread_id, order="desc", limit=1)
             response_text = messages.data[0].content[0].text.value
-            return jsonify({"response": response_text, "thread_id": thread_id})
+            return jsonify({"response": response_text, "thread_id": thread_id, "is_new_thread": is_new_thread})
         else:
-            return jsonify({"response": f"Грешка: Обработката спря със статус '{run.status}'.", "thread_id": thread_id})
+            return jsonify({"response": f"Грешка: Обработката спря със статус '{run.status}'.", "thread_id": thread_id, "is_new_thread": is_new_thread})
 
     except openai.BadRequestError as e:
         print(f"ERROR: Caught a BadRequestError: {e}")

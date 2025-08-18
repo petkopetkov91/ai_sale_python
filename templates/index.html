@@ -198,132 +198,324 @@
             margin-bottom: 10px;
             color: #333;
         }
+
+        :root {
+            --peugeot-blue: #003da5;
+            --light-grey: #f4f6f8;
+            --border-grey: #ddd;
+            --text-dark: #333;
+            --text-light: #fff;
+        }
+        body {
+            overflow: hidden;
+        }
+        #app-container {
+            display: flex;
+            height: 100%;
+        }
+        #sidebar {
+            width: 280px;
+            background-color: #e9ecef;
+            border-right: 1px solid var(--border-grey);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        #sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-grey);
+        }
+        #new-chat-btn {
+            background-color: var(--peugeot-blue);
+            color: var(--text-light);
+            border: none;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 1em;
+            font-weight: 500;
+            width: 100%;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        #new-chat-btn:hover {
+            background-color: #002c8f;
+        }
+        #thread-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+        .thread-group-header {
+            font-size: 0.8em;
+            font-weight: 600;
+            color: #6c757d;
+            padding: 12px 8px 4px;
+            text-transform: uppercase;
+        }
+        .thread-item {
+            padding: 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: background-color 0.2s;
+        }
+        .thread-item:hover {
+            background-color: #d4d9de;
+        }
+        .thread-item.active {
+            background-color: var(--peugeot-blue);
+            color: var(--text-light);
+            font-weight: 500;
+        }
+        #chat-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            max-height: 100vh;
+            width: 100%;
+        }
+        #chat-header {
+            flex-shrink: 0;
+        }
+        #chat-input-container {
+            flex-shrink: 0;
+        }
+
     </style>
 </head>
 <body>
-    <div id="chat-container">
-        <div id="chat-header">Peugeot Наличности</div>
-        <div id="chat-box">
-             <div class="message assistant-message">
-                Здравейте! Как мога да Ви помогна?
+    <div id="app-container">
+        <div id="sidebar">
+            <div id="sidebar-header">
+                <button id="new-chat-btn">+ Нов чат</button>
             </div>
+            <div id="thread-list"></div>
         </div>
-        <div id="chat-input-container">
-            <input type="text" id="chat-input" placeholder="Напишете съобщение...">
-            <button id="send-button">→</button>
+        <div id="chat-container">
+            <div id="chat-header">Peugeot Наличности</div>
+            <div id="chat-box"></div>
+            <div id="chat-input-container">
+                <input type="text" id="chat-input" placeholder="Напишете съобщение...">
+                <button id="send-button">→</button>
+            </div>
         </div>
     </div>
 
     <script>
-        const chatBox = document.getElementById('chat-box');
-        const chatInput = document.getElementById('chat-input');
-        const sendButton = document.getElementById('send-button');
-        let threadId = null; 
+        document.addEventListener('DOMContentLoaded', () => {
+            const chatBox = document.getElementById('chat-box');
+            const chatInput = document.getElementById('chat-input');
+            const sendButton = document.getElementById('send-button');
+            const threadList = document.getElementById('thread-list');
+            const newChatBtn = document.getElementById('new-chat-btn');
 
-        sendButton.addEventListener('click', sendMessage);
-        chatInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                sendMessage();
+            let threadId = null;
+
+            // --- Event Listeners ---
+            sendButton.addEventListener('click', sendMessage);
+            chatInput.addEventListener('keypress', (e) => e.key === 'Enter' && sendMessage());
+            newChatBtn.addEventListener('click', startNewChat);
+
+            // --- Core Functions ---
+            function addMessage(text, sender) {
+                const messageElement = document.createElement('div');
+                messageElement.classList.add('message', `${sender}-message`);
+                messageElement.innerHTML = text.replace(/\n/g, '<br>');
+                chatBox.appendChild(messageElement);
+                chatBox.scrollTop = chatBox.scrollHeight;
+                return messageElement;
             }
-        });
+            
+            function addCarsDisplay(headerText, cars) {
+                const messageElement = document.createElement('div');
+                messageElement.classList.add('message', 'assistant-message');
+                let html = `<div class="cars-header">${headerText}</div>`;
+                if (cars && cars.length > 0) {
+                    html += '<div class="cars-container">';
+                    cars.forEach(car => {
+                        const hasImage = car.image_url && car.image_url.trim() !== '';
+                        html += `
+                            <div class="car-card">
+                                ${hasImage
+                                    ? `<img src="${car.image_url}" alt="${car.model}" class="car-image" onerror="this.className+=' no-image'; this.innerHTML='${car.model}'; this.src=''">`
+                                    : `<div class="car-image no-image">${car.model}</div>`
+                                }
+                                <div class="car-content">
+                                    <div class="availability-badge">В наличност</div>
+                                    <h3 class="car-title">${car.model}</h3>
+                                    <p class="car-price">${car.price}</p>
+                                    <a href="${car.link}" target="_blank" class="view-details-btn">Вижте повече</a>
+                                </div>
+                            </div>`;
+                    });
+                    html += '</div>';
+                }
+                messageElement.innerHTML = html;
+                chatBox.appendChild(messageElement);
+                chatBox.scrollTop = chatBox.scrollHeight;
+                return messageElement;
+            }
+            
+            function showLoadingIndicator(container = chatBox) {
+                const loadingElement = document.createElement('div');
+                loadingElement.classList.add('message', 'assistant-message', 'loading');
+                loadingElement.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span></div>`;
+                container.appendChild(loadingElement);
+                container.scrollTop = container.scrollHeight;
+                return loadingElement;
+            }
 
-        function addMessage(text, sender) {
-            const messageElement = document.createElement('div');
-            messageElement.classList.add('message', `${sender}-message`);
-            messageElement.innerHTML = text.replace(/\n/g, '<br>');
-            chatBox.appendChild(messageElement);
-            chatBox.scrollTop = chatBox.scrollHeight;
-            return messageElement;
-        }
-        
-        function addCarsDisplay(headerText, cars) {
-            const messageElement = document.createElement('div');
-            messageElement.classList.add('message', 'assistant-message');
-            
-            let html = `<div class="cars-header">${headerText}</div>`;
-            
-            if (cars && cars.length > 0) {
-                html += '<div class="cars-container">';
-                cars.forEach(car => {
-                    const hasImage = car.image_url && car.image_url.trim() !== '';
-                    html += `
-                        <div class="car-card">
-                            ${hasImage 
-                                ? `<img src="${car.image_url}" alt="${car.model}" class="car-image" onerror="this.className+=' no-image'; this.innerHTML='${car.model}'; this.src=''">`
-                                : `<div class="car-image no-image">${car.model}</div>`
+            async function sendMessage() {
+                const messageText = chatInput.value.trim();
+                if (messageText === '') return;
+
+                addMessage(messageText, 'user');
+                chatInput.value = '';
+                const loadingIndicator = showLoadingIndicator();
+
+                try {
+                    const response = await fetch('/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: messageText, thread_id: threadId }),
+                    });
+                    const data = await response.json();
+                    chatBox.removeChild(loadingIndicator);
+
+                    if (!response.ok) throw new Error(data.error || `HTTP error! Status: ${response.status}`);
+
+                    if (data.is_new_thread) {
+                        threadId = data.thread_id;
+                        await loadThreads(); // Refresh sidebar and select the new thread
+                    } else {
+                        threadId = data.thread_id;
+                    }
+
+                    if (data.cars) {
+                        addCarsDisplay(data.response, data.cars);
+                    } else {
+                        addMessage(data.response, 'assistant');
+                    }
+                } catch (error) {
+                    console.error('Error details:', error);
+                    if (loadingIndicator.parentNode) {
+                        chatBox.removeChild(loadingIndicator);
+                    }
+                    addMessage(`Грешка: ${error.message}`, 'assistant');
+                }
+            }
+
+            async function loadThreads() {
+                try {
+                    const response = await fetch('/api/threads');
+                    if (!response.ok) throw new Error('Failed to load threads.');
+                    const threads = await response.json();
+
+                    const groupedThreads = groupThreadsByDate(threads);
+                    threadList.innerHTML = ''; // Clear existing list
+
+                    for (const group in groupedThreads) {
+                        const header = document.createElement('div');
+                        header.className = 'thread-group-header';
+                        header.textContent = group;
+                        threadList.appendChild(header);
+
+                        groupedThreads[group].forEach(thread => {
+                            const item = document.createElement('div');
+                            item.className = 'thread-item';
+                            item.textContent = thread.title || 'Нов чат';
+                            item.dataset.threadId = thread.id;
+                            item.setAttribute('title', thread.title);
+
+                            if (thread.id === threadId) {
+                                item.classList.add('active');
                             }
-                            <div class="car-content">
-                                <div class="availability-badge">В наличност</div>
-                                <h3 class="car-title">${car.model}</h3>
-                                <p class="car-price">${car.price}</p>
-                                <a href="${car.link}" target="_blank" class="view-details-btn">Вижте повече</a>
-                            </div>
-                        </div>
-                    `;
-                });
-                html += '</div>';
-            } else {
-                // No need for an extra message here, the headerText already says if no cars were found.
+
+                            item.addEventListener('click', () => selectThread(thread.id, item));
+                            threadList.appendChild(item);
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error loading threads:', error);
+                    threadList.innerHTML = 'Could not load chats.';
+                }
             }
-            
-            messageElement.innerHTML = html;
-            chatBox.appendChild(messageElement);
-            chatBox.scrollTop = chatBox.scrollHeight;
-            return messageElement;
-        }
-        
-        function showLoadingIndicator() {
-            const loadingElement = document.createElement('div');
-            loadingElement.classList.add('message', 'assistant-message', 'loading');
-            loadingElement.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span></div>`;
-            chatBox.appendChild(loadingElement);
-            chatBox.scrollTop = chatBox.scrollHeight;
-            return loadingElement;
-        }
 
-        async function sendMessage() {
-            const messageText = chatInput.value.trim();
-            if (messageText === '') return;
+            function groupThreadsByDate(threads) {
+                const groups = { 'Днес': [], 'Вчера': [], 'Предишни 7 дни': [], 'По-стари': [] };
+                const now = new Date();
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
+                const sevenDaysAgo = new Date(today);
+                sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-            addMessage(messageText, 'user');
-            chatInput.value = '';
-            const loadingIndicator = showLoadingIndicator();
-
-            try {
-                const response = await fetch('/chat', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        message: messageText,
-                        thread_id: threadId
-                    }),
+                threads.forEach(thread => {
+                    const threadDate = new Date(thread.created_at);
+                    if (threadDate >= today) {
+                        groups['Днес'].push(thread);
+                    } else if (threadDate >= yesterday) {
+                        groups['Вчера'].push(thread);
+                    } else if (threadDate >= sevenDaysAgo) {
+                        groups['Предишни 7 дни'].push(thread);
+                    } else {
+                        groups['По-стари'].push(thread);
+                    }
                 });
 
-                const data = await response.json();
-
-                if (!response.ok) {
-                    const errorMessage = data.error || `HTTP грешка! Статус: ${response.status}`;
-                    throw new Error(errorMessage);
+                // Clean up empty groups
+                for (const group in groups) {
+                    if (groups[group].length === 0) {
+                        delete groups[group];
+                    }
                 }
-
-                threadId = data.thread_id; 
-                chatBox.removeChild(loadingIndicator);
-
-                // Now cars can be an empty array, and we still want to display the header message
-                if (data.cars) {
-                    addCarsDisplay(data.response, data.cars);
-                } else {
-                    addMessage(data.response, 'assistant');
-                }
-
-            } catch (error) {
-                console.error('Error details:', error);
-                chatBox.removeChild(loadingIndicator);
-                addMessage(`Грешка: ${error.message}`, 'assistant');
+                return groups;
             }
-        }
+
+            async function selectThread(id, element) {
+                if (threadId === id && chatBox.children.length > 1) return;
+
+                threadId = id;
+                document.querySelectorAll('.thread-item.active').forEach(el => el.classList.remove('active'));
+                element.classList.add('active');
+
+                chatBox.innerHTML = '';
+                const loading = showLoadingIndicator();
+
+                try {
+                    const response = await fetch(`/api/threads/${threadId}/messages`);
+                    if (!response.ok) throw new Error('Failed to load messages.');
+                    const messages = await response.json();
+
+                    chatBox.removeChild(loading);
+                    messages.forEach(msg => {
+                        addMessage(msg.content, msg.role);
+                    });
+                } catch (error) {
+                    console.error('Error loading messages:', error);
+                    chatBox.removeChild(loading);
+                    addMessage('Could not load chat history.', 'assistant');
+                }
+            }
+
+            function startNewChat() {
+                threadId = null;
+                document.querySelectorAll('.thread-item.active').forEach(el => el.classList.remove('active'));
+                chatBox.innerHTML = '';
+                addMessage('Здравейте! Как мога да Ви помогна?', 'assistant');
+                chatInput.focus();
+            }
+
+            function initializeApp() {
+                startNewChat();
+                loadThreads();
+            }
+
+            initializeApp();
+        });
     </script>
 </body>
 </html>
