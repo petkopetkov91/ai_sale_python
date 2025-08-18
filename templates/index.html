@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peugeot Stock Assistant</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f4f6f8;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        #chat-container {
+            width: 90%;
+            max-width: 800px;
+            height: 80vh;
+            background-color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #chat-header {
+            background-color: #003da5; /* Peugeot Blue */
+            color: white;
+            padding: 16px;
+            text-align: center;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        #chat-box {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .message {
+            padding: 10px 15px;
+            border-radius: 18px;
+            max-width: 80%;
+            line-height: 1.5;
+        }
+        .user-message {
+            background-color: #e9e9eb;
+            color: #000;
+            align-self: flex-end;
+        }
+        .assistant-message {
+            background-color: #f0f0f0;
+            color: #333;
+            align-self: flex-start;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+        .assistant-message.loading {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            max-width: 80%;
+        }
+        .typing-indicator span {
+            height: 8px;
+            width: 8px;
+            background-color: #003da5;
+            border-radius: 50%;
+            display: inline-block;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.16s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.32s; }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1.0); }
+        }
+        #chat-input-container {
+            display: flex;
+            border-top: 1px solid #ddd;
+            padding: 15px;
+        }
+        #chat-input {
+            flex-grow: 1;
+            border: 1px solid #ccc;
+            border-radius: 20px;
+            padding: 10px 15px;
+            font-size: 1em;
+            outline: none;
+        }
+        #chat-input:focus {
+            border-color: #003da5;
+        }
+        #send-button {
+            background-color: #003da5;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            margin-left: 10px;
+            cursor: pointer;
+            font-size: 1.5em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #send-button:hover {
+            background-color: #002c8f;
+        }
+        .cars-container {
+            margin-top: 15px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 15px;
+        }
+        .car-card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 0;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .car-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        }
+        .car-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            display: block;
+            background-color: #f8f9fa;
+        }
+        .car-image.no-image {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.1em;
+            font-weight: 500;
+        }
+        .car-content {
+            padding: 15px;
+        }
+        .car-title {
+            margin: 0 0 8px 0;
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #333;
+            line-height: 1.3;
+        }
+        .car-price {
+            margin: 0 0 15px 0;
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #003da5;
+        }
+        .availability-badge {
+            display: inline-block;
+            background-color: #4CAF50;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 500;
+            margin-bottom: 15px;
+        }
+        .view-details-btn {
+            display: inline-block;
+            background: linear-gradient(45deg, #4C8AFF, #003da5);
+            color: white;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 0.95em;
+            font-weight: 500;
+            transition: all 0.2s;
+            text-align: center;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .view-details-btn:hover {
+            background: linear-gradient(45deg, #3A7AFF, #002c8f);
+            transform: translateY(-1px);
+        }
+        .cars-header {
+            font-size: 1.1em;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div id="chat-container">
+        <div id="chat-header">Peugeot Наличности</div>
+        <div id="chat-box">
+             <div class="message assistant-message">
+                Здравейте! Как мога да Ви помогна?
+            </div>
+        </div>
+        <div id="chat-input-container">
+            <input type="text" id="chat-input" placeholder="Напишете съобщение...">
+            <button id="send-button">→</button>
+        </div>
+    </div>
+
+    <script>
+        const chatBox = document.getElementById('chat-box');
+        const chatInput = document.getElementById('chat-input');
+        const sendButton = document.getElementById('send-button');
+        let threadId = null; 
+
+        sendButton.addEventListener('click', sendMessage);
+        chatInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        function addMessage(text, sender) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message', `${sender}-message`);
+            messageElement.innerHTML = text.replace(/\n/g, '<br>');
+            chatBox.appendChild(messageElement);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            return messageElement;
+        }
+        
+        function addCarsDisplay(headerText, cars) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message', 'assistant-message');
+            
+            let html = `<div class="cars-header">${headerText}</div>`;
+            
+            if (cars && cars.length > 0) {
+                html += '<div class="cars-container">';
+                cars.forEach(car => {
+                    const hasImage = car.image_url && car.image_url.trim() !== '';
+                    html += `
+                        <div class="car-card">
+                            ${hasImage 
+                                ? `<img src="${car.image_url}" alt="${car.model}" class="car-image" onerror="this.className+=' no-image'; this.innerHTML='${car.model}'; this.src=''">`
+                                : `<div class="car-image no-image">${car.model}</div>`
+                            }
+                            <div class="car-content">
+                                <div class="availability-badge">В наличност</div>
+                                <h3 class="car-title">${car.model}</h3>
+                                <p class="car-price">${car.price}</p>
+                                <a href="${car.link}" target="_blank" class="view-details-btn">Вижте повече</a>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            } else {
+                // No need for an extra message here, the headerText already says if no cars were found.
+            }
+            
+            messageElement.innerHTML = html;
+            chatBox.appendChild(messageElement);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            return messageElement;
+        }
+        
+        function showLoadingIndicator() {
+            const loadingElement = document.createElement('div');
+            loadingElement.classList.add('message', 'assistant-message', 'loading');
+            loadingElement.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span></div>`;
+            chatBox.appendChild(loadingElement);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            return loadingElement;
+        }
+
+        async function sendMessage() {
+            const messageText = chatInput.value.trim();
+            if (messageText === '') return;
+
+            addMessage(messageText, 'user');
+            chatInput.value = '';
+            const loadingIndicator = showLoadingIndicator();
+
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: messageText,
+                        thread_id: threadId
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    const errorMessage = data.error || `HTTP грешка! Статус: ${response.status}`;
+                    throw new Error(errorMessage);
+                }
+
+                threadId = data.thread_id; 
+                chatBox.removeChild(loadingIndicator);
+
+                // Now cars can be an empty array, and we still want to display the header message
+                if (data.cars) {
+                    addCarsDisplay(data.response, data.cars);
+                } else {
+                    addMessage(data.response, 'assistant');
+                }
+
+            } catch (error) {
+                console.error('Error details:', error);
+                chatBox.removeChild(loadingIndicator);
+                addMessage(`Грешка: ${error.message}`, 'assistant');
+            }
+        }
+    </script>
+</body>
+</html>
