@@ -25,6 +25,9 @@ supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_ANON_KEY")
 supabase: Client = create_client(supabase_url, supabase_key)
 
+# Vector Store ID
+VECTOR_STORE_ID = os.getenv("VECTOR_STORE_ID")
+
 
 def parse_price(price_str):
     """Extracts the price in BGN from a string like '35 858,96 € / 70 134,03 лв.'"""
@@ -189,6 +192,80 @@ def chat():
         traceback.print_exc()
         error_message = f"Възникна критична грешка на сървъра: {e}"
         return jsonify({"error": error_message}), 500
+
+# --- Admin Routes for Vector Store Management ---
+@app.route('/admin')
+def admin():
+    return render_template('admin.html')
+
+@app.route('/api/vector-store/files', methods=['GET'])
+def list_vector_store_files():
+    if not VECTOR_STORE_ID:
+        return jsonify({"error": "VECTOR_STORE_ID is not configured."}), 500
+    try:
+        vector_store_files = client.beta.vector_stores.files.list(vector_store_id=VECTOR_STORE_ID)
+        # We need to fetch details for each file to get the filename
+        files_with_details = []
+        for vs_file in vector_store_files.data:
+            try:
+                file_details = client.files.retrieve(vs_file.id)
+                files_with_details.append({
+                    "id": vs_file.id,
+                    "filename": file_details.filename,
+                    "created_at": file_details.created_at
+                })
+            except Exception as e:
+                print(f"Could not retrieve details for file {vs_file.id}: {e}")
+        return jsonify(files_with_details)
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/vector-store/files', methods=['POST'])
+def upload_file_to_vector_store():
+    if not VECTOR_STORE_ID:
+        return jsonify({"error": "VECTOR_STORE_ID is not configured."}), 500
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part in the request."}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No selected file."}), 400
+
+    try:
+        # 1. Upload the file to OpenAI
+        uploaded_file = client.files.create(file=file, purpose='assistants')
+
+        # 2. Add the file to the vector store
+        vector_store_file = client.beta.vector_stores.files.create(
+            vector_store_id=VECTOR_STORE_ID,
+            file_id=uploaded_file.id
+        )
+
+        return jsonify({"success": True, "file_id": vector_store_file.id, "filename": uploaded_file.filename})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/vector-store/files/<string:file_id>', methods=['DELETE'])
+def delete_file_from_vector_store(file_id):
+    if not VECTOR_STORE_ID:
+        return jsonify({"error": "VECTOR_STORE_ID is not configured."}), 500
+    try:
+        # 1. Remove the file from the vector store
+        deleted_vs_file = client.beta.vector_stores.files.delete(
+            vector_store_id=VECTOR_STORE_ID,
+            file_id=file_id
+        )
+
+        # 2. Delete the file from OpenAI entirely
+        if deleted_vs_file.deleted:
+            client.files.delete(file_id=file_id)
+
+        return jsonify({"success": True, "deleted_file_id": file_id})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 #if __name__ == '__main__':
     #app.run(port=5000, debug=True)

@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - File Management</title>
+    <style>
+        :root {
+            --peugeot-blue: #003da5;
+            --light-grey: #f4f6f8;
+            --border-grey: #ddd;
+            --text-dark: #333;
+            --text-light: #fff;
+            --danger-red: #dc3545;
+            --success-green: #28a745;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--light-grey);
+            margin: 0;
+            padding: 2rem;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: var(--peugeot-blue);
+            border-bottom: 2px solid var(--peugeot-blue);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+        .section {
+            margin-bottom: 2rem;
+        }
+        #upload-form {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        #file-input {
+            flex-grow: 1;
+        }
+        .btn {
+            padding: 0.75rem 1.25rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s, opacity 0.2s;
+        }
+        .btn-primary {
+            background-color: var(--peugeot-blue);
+            color: var(--text-light);
+        }
+        .btn-primary:hover {
+            background-color: #002c8f;
+        }
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        #file-list-container {
+            margin-top: 1rem;
+        }
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            border: 1px solid var(--border-grey);
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+        }
+        .file-info {
+            display: flex;
+            flex-direction: column;
+        }
+        .file-info .filename {
+            font-weight: 600;
+        }
+        .file-info .file-date {
+            font-size: 0.8em;
+            color: #6c757d;
+        }
+        .btn-danger {
+            background-color: var(--danger-red);
+            color: var(--text-light);
+        }
+        .btn-danger:hover {
+            background-color: #c82333;
+        }
+        #status-message {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            display: none;
+        }
+        #status-message.success {
+            background-color: #d4edda;
+            color: #155724;
+            display: block;
+        }
+        #status-message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            display: block;
+        }
+        .nav-link {
+            display: inline-block;
+            margin-bottom: 2rem;
+            color: var(--peugeot-blue);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .nav-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="nav-link">&larr; Обратно към чата</a>
+        <h1>Администрация на файлове</h1>
+
+        <div class="section">
+            <h2>Качване на нов файл</h2>
+            <form id="upload-form">
+                <input type="file" id="file-input" name="file" required>
+                <button type="submit" id="upload-btn" class="btn btn-primary">Качи</button>
+            </form>
+        </div>
+
+        <div class="section">
+            <h2>Списък с качени файлове</h2>
+            <div id="file-list-container">
+                <p>Зареждане...</p>
+            </div>
+        </div>
+
+        <div id="status-message"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const uploadForm = document.getElementById('upload-form');
+            const uploadBtn = document.getElementById('upload-btn');
+            const fileInput = document.getElementById('file-input');
+            const fileListContainer = document.getElementById('file-list-container');
+            const statusMessage = document.getElementById('status-message');
+
+            const showStatus = (message, type) => {
+                statusMessage.textContent = message;
+                statusMessage.className = type;
+                setTimeout(() => {
+                    statusMessage.style.display = 'none';
+                    statusMessage.className = '';
+                }, 5000);
+            };
+
+            const loadFiles = async () => {
+                fileListContainer.innerHTML = '<p>Зареждане...</p>';
+                try {
+                    const response = await fetch('/api/vector-store/files');
+                    if (!response.ok) {
+                        const err = await response.json();
+                        throw new Error(err.error || 'Failed to fetch files.');
+                    }
+                    const files = await response.json();
+
+                    fileListContainer.innerHTML = '';
+                    if (files.length === 0) {
+                        fileListContainer.innerHTML = '<p>Няма качени файлове.</p>';
+                    } else {
+                        files.forEach(file => {
+                            const item = document.createElement('div');
+                            item.className = 'file-item';
+                            item.innerHTML = `
+                                <div class="file-info">
+                                    <span class="filename">${file.filename}</span>
+                                    <span class="file-date">Качен на: ${new Date(file.created_at * 1000).toLocaleString()}</span>
+                                </div>
+                                <button class="btn btn-danger" data-file-id="${file.id}">Изтрий</button>
+                            `;
+                            fileListContainer.appendChild(item);
+                        });
+                    }
+                } catch (error) {
+                    fileListContainer.innerHTML = `<p style="color: red;">${error.message}</p>`;
+                }
+            };
+
+            fileListContainer.addEventListener('click', async (e) => {
+                if (e.target.matches('.btn-danger')) {
+                    const fileId = e.target.dataset.fileId;
+                    if (confirm('Сигурни ли сте, че искате да изтриете този файл? Това действие е необратимо.')) {
+                        try {
+                            const response = await fetch(`/api/vector-store/files/${fileId}`, { method: 'DELETE' });
+                            if (!response.ok) {
+                                const err = await response.json();
+                                throw new Error(err.error || 'Failed to delete file.');
+                            }
+                            showStatus('Файлът е успешно изтрит.', 'success');
+                            loadFiles();
+                        } catch (error) {
+                            showStatus(error.message, 'error');
+                        }
+                    }
+                }
+            });
+
+            uploadForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                if (!fileInput.files[0]) {
+                    showStatus('Моля, изберете файл за качване.', 'error');
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+
+                uploadBtn.disabled = true;
+                uploadBtn.textContent = 'Качване...';
+
+                try {
+                    const response = await fetch('/api/vector-store/files', {
+                        method: 'POST',
+                        body: formData,
+                    });
+
+                    if (!response.ok) {
+                        const err = await response.json();
+                        throw new Error(err.error || 'Failed to upload file.');
+                    }
+
+                    const result = await response.json();
+                    showStatus(`Файлът "${result.filename}" е успешно качен.`, 'success');
+                    uploadForm.reset();
+                    loadFiles();
+                } catch (error) {
+                    showStatus(error.message, 'error');
+                } finally {
+                    uploadBtn.disabled = false;
+                    uploadBtn.textContent = 'Качи';
+                }
+            });
+
+            loadFiles();
+        });
+    </script>
+</body>
+</html>

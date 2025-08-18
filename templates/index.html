@@ -46,6 +46,19 @@
             padding: 16px;
             border-bottom: 1px solid var(--border-grey);
             flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .admin-link {
+            text-align: center;
+            font-size: 0.9em;
+            color: #6c757d;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .admin-link:hover {
+            text-decoration: underline;
         }
         #new-chat-btn {
             background-color: var(--peugeot-blue);
@@ -237,6 +250,7 @@
         <div id="sidebar">
             <div id="sidebar-header">
                 <button id="new-chat-btn">+ Нов чат</button>
+                <a href="/admin" class="admin-link">Администрация</a>
             </div>
             <div id="thread-list"></div>
         </div>
