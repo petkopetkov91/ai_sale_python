@@ -95,21 +95,21 @@ def get_threads():
         threads_with_titles = []
         for session in sessions:
             try:
+                # Check for the first user message to ensure the chat is not empty
                 msg_response = supabase.table('chat_messages').select('message').eq('session_id', session['session_id']).eq('is_user', True).order('created_at', desc=False).limit(1).execute()
-                first_message = msg_response.data[0]['message'] if msg_response.data else "Нов чат"
 
-                threads_with_titles.append({
-                    "id": session['session_id'],
-                    "title": first_message,
-                    "created_at": session['created_at']
-                })
+                # Only include threads that have at least one user message
+                if msg_response.data:
+                    first_message = msg_response.data[0]['message']
+                    threads_with_titles.append({
+                        "id": session['session_id'],
+                        "title": first_message,
+                        "created_at": session['created_at']
+                    })
             except Exception as e:
-                print(f"Could not retrieve title for thread {session['session_id']}: {e}")
-                threads_with_titles.append({
-                    "id": session['session_id'],
-                    "title": "Грешка при зареждане",
-                    "created_at": session['created_at']
-                })
+                # Log the error but don't add a broken item to the list
+                print(f"Error processing thread {session.get('session_id', 'N/A')}: {e}")
+
         return jsonify(threads_with_titles)
     except Exception as e:
         traceback.print_exc()
