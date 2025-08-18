@@ -233,8 +233,9 @@ def upload_file_to_vector_store():
         return jsonify({"error": "No selected file."}), 400
 
     try:
-        # 1. Upload the file to OpenAI
-        uploaded_file = client.files.create(file=file, purpose='assistants')
+        # 1. Upload the file to OpenAI, converting the FileStorage object to a tuple
+        # of (filename, file_bytes) which the library expects.
+        uploaded_file = client.files.create(file=(file.filename, file.read()), purpose='assistants')
 
         # 2. Add the file to the vector store
         vector_store_file = client.beta.vector_stores.files.create(
