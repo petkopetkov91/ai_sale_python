@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoring - Live Chats</title>
+    <style>
+        :root {
+            --peugeot-blue: #003da5;
+            --light-grey: #f4f6f8;
+            --border-grey: #ddd;
+            --text-dark: #333;
+            --text-light: #fff;
+            --admin-blue: #007bff;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--light-grey);
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #app-container {
+            display: flex;
+            height: 100%;
+        }
+        #sidebar {
+            width: 320px; /* Slightly wider for more info */
+            min-width: 320px;
+            background-color: #f8f9fa;
+            border-right: 1px solid var(--border-grey);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        #sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-grey);
+            flex-shrink: 0;
+            text-align: center;
+        }
+        #sidebar-header h1 {
+            font-size: 1.5rem;
+            margin: 0;
+            color: var(--peugeot-blue);
+        }
+        #thread-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+        .thread-group-header {
+            font-size: 0.8em;
+            font-weight: 600;
+            color: #6c757d;
+            padding: 12px 8px 4px;
+            text-transform: uppercase;
+        }
+        .thread-item {
+            padding: 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            border-left: 4px solid transparent;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+        .thread-item:hover {
+            background-color: #e9ecef;
+        }
+        .thread-item.active {
+            background-color: #e0e7ff;
+            border-left-color: var(--admin-blue);
+            font-weight: 500;
+        }
+        .thread-title {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: block;
+        }
+        .thread-meta {
+            font-size: 0.8em;
+            color: #6c757d;
+            display: flex;
+            justify-content: space-between;
+            margin-top: 4px;
+        }
+        .human-controlled-tag {
+            background-color: var(--admin-blue);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        #chat-container {
+            flex-grow: 1;
+            background-color: #fff;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        #chat-header {
+            background-color: #6c757d;
+            color: white;
+            padding: 16px;
+            text-align: center;
+            font-size: 1.2em;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+        #chat-box {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .message { padding: 10px 15px; border-radius: 18px; max-width: 80%; line-height: 1.5; }
+        .user-message { background-color: #e9e9eb; color: #000; align-self: flex-end; }
+        .assistant-message { background-color: #f0f0f0; color: var(--text-dark); align-self: flex-start; }
+        .admin-message { background-color: #d1e7dd; border: 1px solid #a3cfbb; color: #0f5132; align-self: flex-start; }
+        #chat-input-container { display: flex; border-top: 1px solid var(--border-grey); padding: 15px; flex-shrink: 0; }
+        #chat-input { flex-grow: 1; border: 1px solid #ccc; border-radius: 20px; padding: 10px 15px; font-size: 1em; outline: none; }
+        #chat-input:focus { border-color: var(--admin-blue); }
+        #send-button { background-color: var(--admin-blue); color: white; border: none; border-radius: 50%; width: 44px; height: 44px; margin-left: 10px; cursor: pointer; font-size: 1.5em; display: flex; align-items: center; justify-content: center; }
+        #send-button:hover { background-color: #0056b3; }
+        #chat-placeholder { display: flex; justify-content: center; align-items: center; height: 100%; color: #6c757d; font-size: 1.2rem; }
+    </style>
+</head>
+<body>
+    <div id="app-container">
+        <div id="sidebar">
+            <div id="sidebar-header"><h1>Наблюдение</h1></div>
+            <div id="thread-list"><p>Зареждане на чатове...</p></div>
+        </div>
+        <div id="chat-container">
+            <div id="chat-header"><span>Изберете чат, за да го видите</span></div>
+            <div id="chat-box">
+                <div id="chat-placeholder">
+                    <p>Моля, изберете чат от списъка вляво.</p>
+                </div>
+            </div>
+            <div id="chat-input-container" style="display: none;">
+                <input type="text" id="chat-input" placeholder="Напишете съобщение като администратор...">
+                <button id="send-button">→</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const threadList = document.getElementById('thread-list');
+            const chatBox = document.getElementById('chat-box');
+            const chatHeader = document.querySelector('#chat-header span');
+            const chatInputContainer = document.getElementById('chat-input-container');
+            const chatInput = document.getElementById('chat-input');
+            const sendButton = document.getElementById('send-button');
+            const chatPlaceholder = document.getElementById('chat-placeholder');
+
+            let activeThreadId = null;
+            let threadsCache = [];
+
+            const renderThreads = (threads) => {
+                threadList.innerHTML = '';
+                if (threads.length === 0) {
+                    threadList.innerHTML = '<p style="padding: 1rem;">Няма активни чатове.</p>';
+                    return;
+                }
+
+                const grouped = threads.reduce((acc, thread) => {
+                    const date = new Date(thread.created_at).toLocaleDateString();
+                    if (!acc[date]) acc[date] = [];
+                    acc[date].push(thread);
+                    return acc;
+                }, {});
+
+                for (const date in grouped) {
+                    const header = document.createElement('div');
+                    header.className = 'thread-group-header';
+                    header.textContent = date;
+                    threadList.appendChild(header);
+
+                    grouped[date].forEach(thread => {
+                        const item = document.createElement('div');
+                        item.className = 'thread-item';
+                        if (thread.id === activeThreadId) item.classList.add('active');
+                        item.dataset.threadId = thread.id;
+
+                        const humanTag = thread.is_human_controlled ? '<span class="human-controlled-tag">Поет</span>' : '';
+
+                        item.innerHTML = `
+                            <span class="thread-title">${thread.title}</span>
+                            <div class="thread-meta">
+                                <span>${new Date(thread.created_at).toLocaleTimeString()}</span>
+                                ${humanTag}
+                            </div>
+                        `;
+                        item.addEventListener('click', () => selectThread(thread.id));
+                        threadList.appendChild(item);
+                    });
+                }
+            };
+
+            const loadThreads = async () => {
+                try {
+                    const response = await fetch('/api/threads');
+                    const threads = await response.json();
+                    if (JSON.stringify(threads) !== JSON.stringify(threadsCache)) {
+                        threadsCache = threads;
+                        renderThreads(threads);
+                    }
+                } catch (error) {
+                    console.error("Failed to load threads:", error);
+                    threadList.innerHTML = '<p style="color: red;">Грешка при зареждане на чатовете.</p>';
+                }
+            };
+
+            const addMessage = (content, role) => {
+                const el = document.createElement('div');
+                el.classList.add('message', `${role}-message`);
+                el.textContent = content;
+                chatBox.appendChild(el);
+            };
+
+            const selectThread = async (threadId) => {
+                if (activeThreadId === threadId) return;
+
+                activeThreadId = threadId;
+                renderThreads(threadsCache); // Re-render to show active state
+
+                chatBox.innerHTML = '';
+                chatPlaceholder.style.display = 'none';
+                chatInputContainer.style.display = 'flex';
+                chatHeader.textContent = `Чат ID: ${threadId.substring(0, 12)}...`;
+
+                try {
+                    const response = await fetch(`/api/threads/${threadId}/messages`);
+                    const messages = await response.json();
+                    messages.forEach(msg => addMessage(msg.content, msg.role));
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                } catch (error) {
+                    addMessage('Грешка при зареждане на съобщенията.', 'admin');
+                }
+            };
+
+            const sendAdminMessage = async () => {
+                const messageText = chatInput.value.trim();
+                if (!messageText || !activeThreadId) return;
+
+                chatInput.value = '';
+                addMessage(messageText, 'admin'); // Display admin message immediately
+
+                try {
+                    await fetch('/api/monitoring/send-message', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ thread_id: activeThreadId, message: messageText }),
+                    });
+                    // Refresh thread list to show human-controlled tag
+                    loadThreads();
+                } catch (error) {
+                    addMessage('Грешка при изпращане на съобщението.', 'admin');
+                }
+            };
+
+            sendButton.addEventListener('click', sendAdminMessage);
+            chatInput.addEventListener('keypress', (e) => e.key === 'Enter' && sendAdminMessage());
+
+            // Initial load and polling
+            loadThreads();
+            setInterval(loadThreads, 10000); // Poll every 10 seconds
+        });
+    </script>
+</body>
+</html>

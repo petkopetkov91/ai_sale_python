@@ -50,8 +50,11 @@
             flex-direction: column;
             gap: 1rem;
         }
+        .nav-links {
+            display: flex;
+            justify-content: space-around;
+        }
         .admin-link {
-            text-align: center;
             font-size: 0.9em;
             color: #6c757d;
             text-decoration: none;
@@ -250,7 +253,10 @@
         <div id="sidebar">
             <div id="sidebar-header">
                 <button id="new-chat-btn">+ Нов чат</button>
-                <a href="/admin" class="admin-link">Администрация</a>
+                <div class="nav-links">
+                    <a href="/admin" class="admin-link">Админ. на файлове</a>
+                    <a href="/monitoring" class="admin-link">Наблюдение на чатове</a>
+                </div>
             </div>
             <div id="thread-list"></div>
         </div>
