@@ -30,54 +30,136 @@ def parse_price(price_str):
     """Extracts the price in BGN from a string like '35 858,96 € / 70 134,03 лв.'"""
     if not price_str:
         return float('inf')
+    
+    # Търсим цена в лева
     match = re.search(r'([\d\s,]+)\s*лв', price_str)
     if match:
         try:
+            # Премахваме интервали и заменяме запетаи с точки
             price_clean = match.group(1).replace(' ', '').replace(',', '.')
             return float(price_clean)
         except (ValueError, TypeError):
+            print(f"DEBUG: Грешка при парсване на цена: {price_str}")
             return float('inf')
+    
+    print(f"DEBUG: Не е намерена цена в лева в: {price_str}")
     return float('inf')
 
 def get_available_cars(model_filter=None):
     """
-    Fetches, filters, sorts by price, and returns the top 4 cheapest cars as a Python dictionary.
+    Fetches, filters, sorts by price, and returns the top 2 cheapest cars as a Python dictionary.
     """
     print(f"DEBUG: Calling get_available_cars function. Filter: {model_filter}")
+    
     try:
         url = "https://sale.peugeot.bg/ecommerce/fb/product_feed.xml"
+        print(f"DEBUG: Fetching XML from: {url}")
+        
         response = requests.get(url, timeout=15)
         response.raise_for_status()
-
+        print(f"DEBUG: XML response status: {response.status_code}")
+        
+        # Парсиране на XML
         root = ET.fromstring(response.content)
         all_cars = []
         ns = {'g': 'http://base.google.com/ns/1.0'}
-
-        for item in root.findall('.//channel/item'):
-            if item.find('g:availability', ns) is not None and item.find('g:availability', ns).text == 'in stock':
-                all_cars.append({
-                    "model": item.find('g:title', ns).text.strip() if item.find('g:title', ns) is not None else "N/A",
-                    "price": item.find('g:description', ns).text.strip() if item.find('g:description', ns) is not None else "N/A",
-                    "link": item.find('g:link', ns).text if item.find('g:link', ns) is not None else "#",
-                    "image_url": item.find('g:image_link', ns).text if item.find('g:image_link', ns) is not None else ""
-                })
         
-        filtered_cars = [car for car in all_cars if model_filter.lower() in car['model'].lower()] if model_filter else all_cars
+        # Проверяваме колко елемента има общо
+        items = root.findall('.//channel/item')
+        print(f"DEBUG: Намерени общо {len(items)} елемента в XML")
         
+        in_stock_count = 0
+        for item in items:
+            availability_elem = item.find('g:availability', ns)
+            if availability_elem is not None:
+                availability = availability_elem.text
+                
+                if availability == 'in stock':
+                    in_stock_count += 1
+                    
+                    # Извличаме данните
+                    title_elem = item.find('g:title', ns)
+                    description_elem = item.find('g:description', ns)
+                    link_elem = item.find('g:link', ns)
+                    image_elem = item.find('g:image_link', ns)
+                    
+                    title = title_elem.text.strip() if title_elem is not None else "N/A"
+                    description = description_elem.text.strip() if description_elem is not None else "N/A"
+                    link = link_elem.text if link_elem is not None else "#"
+                    image_url = image_elem.text if image_elem is not None else ""
+                    
+                    print(f"DEBUG: Намерен автомобил: {title}")
+                    
+                    car_data = {
+                        "model": title,
+                        "price": description,
+                        "link": link,
+                        "image_url": image_url
+                    }
+                    all_cars.append(car_data)
+        
+        print(f"DEBUG: Общо налични автомобили: {in_stock_count}")
+        print(f"DEBUG: Събрани данни за {len(all_cars)} автомобила")
+        
+        # Филтриране по модел ако е зададен
+        if model_filter:
+            print(f"DEBUG: Филтриране по модел: {model_filter}")
+            filtered_cars = []
+            for car in all_cars:
+                if model_filter.lower() in car['model'].lower():
+                    filtered_cars.append(car)
+                    print(f"DEBUG: Модел {car['model']} отговаря на филтъра")
+            
+            print(f"DEBUG: След филтриране останаха {len(filtered_cars)} автомобила")
+        else:
+            filtered_cars = all_cars
+        
+        # Добавяме числова цена за сортиране
         for car in filtered_cars:
             car['numeric_price'] = parse_price(car['price'])
-
+            print(f"DEBUG: {car['model']} -> numeric_price: {car['numeric_price']}")
+        
+        # Сортираме по цена
         sorted_cars = sorted(filtered_cars, key=lambda x: x['numeric_price'])
+        
+        # Вземаме първите 2
         final_cars = sorted_cars[:2]
         
+        print(f"DEBUG: Финални {len(final_cars)} автомобила за връщане")
+        
         if not final_cars:
-            summary = f"За съжаление, в момента няма налични автомобили, отговарящи на вашето търсене за '{model_filter}'." if model_filter else "За съжаление, в момента няма налични автомобили."
+            if model_filter:
+                summary = f"За съжаление, в момента няма налични автомобили, отговарящи на вашето търсене за '{model_filter}'."
+            else:
+                summary = "За съжаление, в момента няма налични автомобили."
+            
+            print(f"DEBUG: Няма намерени автомобили. Summary: {summary}")
             return {"summary": summary, "cars": []}
+        
+        summary = f"Намерени са {len(final_cars)} автомобила, които отговарят на вашето търсене:"
+        
+        # Премахваме numeric_price от финалния резултат
+        for car in final_cars:
+            car.pop('numeric_price', None)
+        
+        result = {"summary": summary, "cars": final_cars}
+        print(f"DEBUG: Връщам резултат с {len(result['cars'])} автомобила")
+        return result
 
-        summary = "Ето налични автомобили, които отговарят на вашето търсене:"
-        return {"summary": summary, "cars": final_cars}
-
+    except requests.RequestException as e:
+        print(f"ERROR: Мрежова грешка: {e}")
+        traceback.print_exc()
+        summary = "Възникна грешка при свързването с уебсайта на Peugeot."
+        return {"summary": summary, "cars": []}
+    
+    except ET.ParseError as e:
+        print(f"ERROR: Грешка при парсване на XML: {e}")
+        traceback.print_exc()
+        summary = "Възникна грешка при обработката на данните за автомобили."
+        return {"summary": summary, "cars": []}
+    
     except Exception as e:
+        print(f"ERROR: Неочаквана грешка: {e}")
         traceback.print_exc()
         summary = "Възникна грешка при извличането на данните за автомобили."
         return {"summary": summary, "cars": []}
@@ -95,21 +177,21 @@ def get_threads():
         threads_with_titles = []
         for session in sessions:
             try:
+                # Check for the first user message to ensure the chat is not empty
                 msg_response = supabase.table('chat_messages').select('message').eq('session_id', session['session_id']).eq('is_user', True).order('created_at', desc=False).limit(1).execute()
-                first_message = msg_response.data[0]['message'] if msg_response.data else "Нов чат"
 
-                threads_with_titles.append({
-                    "id": session['session_id'],
-                    "title": first_message,
-                    "created_at": session['created_at']
-                })
+                # Only include threads that have at least one user message
+                if msg_response.data:
+                    first_message = msg_response.data[0]['message']
+                    threads_with_titles.append({
+                        "id": session['session_id'],
+                        "title": first_message,
+                        "created_at": session['created_at']
+                    })
             except Exception as e:
-                print(f"Could not retrieve title for thread {session['session_id']}: {e}")
-                threads_with_titles.append({
-                    "id": session['session_id'],
-                    "title": "Грешка при зареждане",
-                    "created_at": session['created_at']
-                })
+                # Log the error but don't add a broken item to the list
+                print(f"Error processing thread {session.get('session_id', 'N/A')}: {e}")
+
         return jsonify(threads_with_titles)
     except Exception as e:
         traceback.print_exc()
@@ -139,53 +221,99 @@ def chat():
         user_message = data.get("message")
         is_new_thread = not thread_id
 
+        print(f"DEBUG: Chat request - thread_id: {thread_id}, is_new: {is_new_thread}")
+
         if is_new_thread:
             thread = client.beta.threads.create()
             thread_id = thread.id
+            print(f"DEBUG: Created new thread: {thread_id}")
             supabase.table('chat_sessions').insert({"session_id": thread_id}).execute()
 
+        # Добавяме съобщението на потребителя
         client.beta.threads.messages.create(thread_id=thread_id, role="user", content=user_message)
         supabase.table('chat_messages').insert({"session_id": thread_id, "message": user_message, "is_user": True}).execute()
 
+        # Стартираме run
         run = client.beta.threads.runs.create(assistant_id=ASSISTANT_ID, thread_id=thread_id)
+        print(f"DEBUG: Started run: {run.id}")
+        
+        car_data_result = None  # За съхранение на резултата от функцията
+        max_iterations = 30  # Максимум 30 секунди
+        iteration = 0
 
-        while run.status in ['queued', 'in_progress', 'requires_action']:
+        while run.status in ['queued', 'in_progress', 'requires_action'] and iteration < max_iterations:
             run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
+            print(f"DEBUG: Run status: {run.status} (iteration {iteration})")
+            
             if run.status == 'requires_action':
-                tool_call = run.required_action.submit_tool_outputs.tool_calls[0]
-                if tool_call.function.name == "get_available_cars":
-                    arguments = json.loads(tool_call.function.arguments)
-                    car_data_result = get_available_cars(model_filter=arguments.get('model_filter'))
+                print(f"DEBUG: Function call required")
+                tool_outputs = []
+                
+                for tool_call in run.required_action.submit_tool_outputs.tool_calls:
+                    print(f"DEBUG: Processing tool call: {tool_call.function.name}")
                     
-                    # Save summary to DB before returning
-                    supabase.table('chat_messages').insert({"session_id": thread_id, "message": car_data_result['summary'], "is_user": False}).execute()
+                    if tool_call.function.name == "get_available_cars":
+                        arguments = json.loads(tool_call.function.arguments)
+                        print(f"DEBUG: Function arguments: {arguments}")
+                        
+                        car_data_result = get_available_cars(model_filter=arguments.get('model_filter'))
+                        
+                        tool_outputs.append({
+                            "tool_call_id": tool_call.id,
+                            "output": json.dumps(car_data_result, ensure_ascii=False)
+                        })
 
-                    client.beta.threads.runs.submit_tool_outputs(
-                        thread_id=thread_id,
-                        run_id=run.id,
-                        tool_outputs=[{"tool_call_id": tool_call.id, "output": f"Function executed. Found {len(car_data_result['cars'])} cars."}]
-                    )
-
-                    return jsonify({
-                        "response": car_data_result['summary'],
-                        "cars": car_data_result['cars'],
-                        "thread_id": thread_id,
-                        "is_new_thread": is_new_thread
-                    })
+                # Изпращаме резултатите обратно към Assistant-а
+                print(f"DEBUG: Submitting tool outputs")
+                client.beta.threads.runs.submit_tool_outputs(
+                    thread_id=thread_id,
+                    run_id=run.id,
+                    tool_outputs=tool_outputs
+                )
+                
+            iteration += 1
             time.sleep(1)
 
+        print(f"DEBUG: Run completed with status: {run.status}")
+
         if run.status == 'completed':
+            # Получаваме финалния отговор от Assistant-а
             messages = client.beta.threads.messages.list(thread_id=thread_id, order="desc", limit=1)
             response_text = messages.data[0].content[0].text.value
+            print(f"DEBUG: Assistant response: {response_text[:100]}...")
 
-            supabase.table('chat_messages').insert({"session_id": thread_id, "message": response_text, "is_user": False}).execute()
+            # Записваме отговора в базата
+            supabase.table('chat_messages').insert({
+                "session_id": thread_id, 
+                "message": response_text, 
+                "is_user": False
+            }).execute()
 
-            return jsonify({"response": response_text, "thread_id": thread_id, "is_new_thread": is_new_thread})
+            # Ако имаме данни за коли, ги включваме в отговора
+            response_data = {
+                "response": response_text,
+                "thread_id": thread_id,
+                "is_new_thread": is_new_thread
+            }
+            
+            if car_data_result and car_data_result.get('cars'):
+                response_data["cars"] = car_data_result['cars']
+                print(f"DEBUG: Including {len(car_data_result['cars'])} cars in response")
+
+            return jsonify(response_data)
+            
+        elif run.status == 'failed':
+            error_message = f"Грешка: Обработката неуспешна. Причина: {run.last_error.message if run.last_error else 'Неизвестна грешка'}"
+            print(f"DEBUG: Run failed: {error_message}")
+            return jsonify({"response": error_message, "thread_id": thread_id, "is_new_thread": is_new_thread})
+            
         else:
-            error_message = f"Грешка: Обработката спря със статус '{run.status}'."
+            error_message = f"Грешка: Обработката спря със статус '{run.status}' след {iteration} итерации."
+            print(f"DEBUG: Run ended with unexpected status: {run.status}")
             return jsonify({"response": error_message, "thread_id": thread_id, "is_new_thread": is_new_thread})
 
     except Exception as e:
+        print(f"ERROR: Critical server error: {e}")
         traceback.print_exc()
         error_message = f"Възникна критична грешка на сървъра: {e}"
         return jsonify({"error": error_message}), 500
