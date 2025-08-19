@@ -157,8 +157,9 @@ def chat():
                     arguments = json.loads(tool_call.function.arguments)
                     car_data_result = get_available_cars(model_filter=arguments.get('model_filter'))
                     
-                    # Save summary to DB before returning
-                    supabase.table('chat_messages').insert({"session_id": thread_id, "message": car_data_result['summary'], "is_user": False}).execute()
+                    # Save the full car data structure to the DB
+                    car_data_as_json = json.dumps(car_data_result, ensure_ascii=False)
+                    supabase.table('chat_messages').insert({"session_id": thread_id, "message": car_data_as_json, "is_user": False}).execute()
 
                     client.beta.threads.runs.submit_tool_outputs(
                         thread_id=thread_id,

@@ -437,10 +437,26 @@
 
                     chatBox.removeChild(loading);
                     messages.forEach(msg => {
-                        // This logic needs to be updated when Supabase is integrated
-                        // to handle the `is_user` flag instead of `role`.
                         const role = msg.is_user ? 'user' : 'assistant';
-                        addMessage(msg.content, role);
+                        // For assistant messages, try to parse them as JSON
+                        if (role === 'assistant') {
+                            try {
+                                const data = JSON.parse(msg.content);
+                                // If parsing is successful and it has car data, display it
+                                if (data && data.cars) {
+                                    addCarsDisplay(data.summary, data.cars);
+                                } else {
+                                    // It's valid JSON, but not the structure we expect. Display as text.
+                                    addMessage(msg.content, role);
+                                }
+                            } catch (e) {
+                                // If it's not a valid JSON string, it's a regular text message.
+                                addMessage(msg.content, role);
+                            }
+                        } else {
+                            // User messages are always plain text
+                            addMessage(msg.content, role);
+                        }
                     });
                 } catch (error) {
                     console.error('Error loading messages:', error);
