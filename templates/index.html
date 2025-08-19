@@ -1,36 +1,23 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="bg">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Peugeot Stock Assistant</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bs-primary-rgb: 0, 61, 165; /* Peugeot Blue */
+            --bs-primary-rgb: 0, 61, 165;
             --bs-body-font-family: 'Inter', sans-serif;
             --bs-body-bg: #f8f9fa;
         }
-        body {
-            font-family: var(--bs-body-font-family);
-        }
-        .app-wrapper {
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 1rem;
-        }
-        .app-container {
-            width: 100%;
-            max-width: 1200px;
-            height: 95vh;
-            display: flex;
-            overflow: hidden;
-        }
+        body { font-family: var(--bs-body-font-family); }
+        .app-wrapper { height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+        .app-container { width: 100%; max-width: 1200px; height: 95vh; display: flex; overflow: hidden; }
         .sidebar {
             width: 300px;
             min-width: 300px;
@@ -39,53 +26,21 @@
             display: flex;
             flex-direction: column;
         }
-        .sidebar-header {
-            padding: 1rem;
-            border-bottom: 1px solid #dee2e6;
-        }
-        .chat-history {
-            flex-grow: 1;
-            overflow-y: auto;
-        }
-        .chat-container {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-        }
-        .chat-header {
-            background-color: var(--bs-primary);
-            color: white;
-        }
-        .chat-box {
-            flex-grow: 1;
-            padding: 1rem;
-            overflow-y: auto;
-            background-color: #f1f3f5;
-        }
-        .message-bubble {
-            max-width: 80%;
-            padding: 0.75rem 1rem;
-            border-radius: 1.25rem;
-            margin-bottom: 0.5rem;
-            width: fit-content;
-        }
-        .user-message .message-bubble {
-            background-color: var(--bs-primary);
-            color: white;
-            margin-left: auto;
-            border-bottom-right-radius: 0.25rem;
-        }
-        .assistant-message .message-bubble {
-            background-color: #fff;
-            border: 1px solid #e9ecef;
-            color: #212529;
-            border-bottom-left-radius: 0.25rem;
-        }
-        .chat-input-group {
+        .sidebar-header { padding: 1rem; border-bottom: 1px solid #dee2e6; }
+        .history-toggle {
+            cursor: pointer;
+            padding: 0.75rem;
             border-top: 1px solid #dee2e6;
-            padding: 1rem;
-            background-color: #fff;
         }
+        .chat-history { flex-grow: 1; overflow-y: auto; }
+        .chat-container { flex-grow: 1; display: flex; flex-direction: column; }
+        .chat-header { background-color: var(--bs-primary); color: white; }
+        .chat-box { flex-grow: 1; padding: 1rem; overflow-y: auto; background-color: #f1f3f5; }
+        .message-bubble { max-width: 80%; padding: 0.75rem 1rem; border-radius: 1.25rem; margin-bottom: 0.5rem; width: fit-content; line-height: 1.5; }
+        .user-message .message-bubble { background-color: var(--bs-primary); color: white; margin-left: auto; border-bottom-right-radius: 0.25rem; }
+        .assistant-message .message-bubble { background-color: #fff; border: 1px solid #e9ecef; color: #212529; border-bottom-left-radius: 0.25rem; }
+        .chat-input-group { border-top: 1px solid #dee2e6; padding: 1rem; background-color: #fff; }
+        .list-group-item.active { z-index: 2; color: var(--bs-primary-color); background-color: var(--bs-primary-bg-subtle); border-color: var(--bs-primary-border-subtle); }
     </style>
 </head>
 <body>
@@ -94,32 +49,27 @@
             <!-- Sidebar -->
             <div class="sidebar">
                 <div class="sidebar-header">
-                    <button id="new-chat-btn" class="btn btn-primary w-100 mb-2">Нов чат</button>
-                    <div class="text-center">
-                        <a href="/admin" class="text-muted small text-decoration-none">Админ.</a> |
-                        <a href="/monitoring" class="text-muted small text-decoration-none">Наблюдение</a>
+                    <button id="new-chat-btn" class="btn btn-primary w-100 mb-2"><i class="bi bi-plus-lg"></i> Нов чат</button>
+                    <div class="text-center small">
+                        <a href="/admin" class="text-muted text-decoration-none">Админ.</a> |
+                        <a href="/monitoring" class="text-muted text-decoration-none">Наблюдение</a>
                     </div>
                 </div>
-                <details open>
-                    <summary class="list-group-item list-group-item-action bg-light">История на чатове</summary>
-                    <div class="list-group list-group-flush chat-history" id="thread-list">
-                        <!-- Threads will be loaded here -->
-                    </div>
-                </details>
+                <div id="history-toggle" class="history-toggle d-flex justify-content-between align-items-center list-group-item-action">
+                    <span class="fw-bold">История на чатове</span>
+                    <i class="bi bi-chevron-down"></i>
+                </div>
+                <div class="list-group list-group-flush chat-history" id="thread-list"></div>
             </div>
 
             <!-- Chat Container -->
             <div class="chat-container">
-                <div class="chat-header p-3 text-center">
-                    <h5 class="mb-0">Peugeot Наличности</h5>
-                </div>
-                <div class="chat-box" id="chat-box">
-                    <!-- Messages will be loaded here -->
-                </div>
+                <div class="chat-header p-3 text-center"><h5 class="mb-0">Peugeot Stock Assistant</h5></div>
+                <div class="chat-box" id="chat-box"></div>
                 <div class="chat-input-group">
                     <div class="input-group">
                         <input type="text" id="chat-input" class="form-control" placeholder="Напишете съобщение...">
-                        <button id="send-button" class="btn btn-primary">Изпрати</button>
+                        <button id="send-button" class="btn btn-primary"><i class="bi bi-send-fill"></i></button>
                     </div>
                 </div>
             </div>
@@ -134,44 +84,27 @@
             const sendButton = document.getElementById('send-button');
             const threadList = document.getElementById('thread-list');
             const newChatBtn = document.getElementById('new-chat-btn');
-
+            const historyToggle = document.getElementById('history-toggle');
             let threadId = null;
 
-            const addMessage = (text, sender, container = chatBox) => {
-                const messageWrapper = document.createElement('div');
-                messageWrapper.classList.add('message', `${sender}-message`, 'd-flex', 'flex-column');
-
+            const addMessage = (text, sender) => {
+                const wrapper = document.createElement('div');
+                wrapper.classList.add('message', `${sender}-message`, 'd-flex', 'flex-column');
                 const bubble = document.createElement('div');
                 bubble.classList.add('message-bubble');
                 bubble.innerHTML = text.replace(/\n/g, '<br>');
-
-                messageWrapper.appendChild(bubble);
-                container.appendChild(messageWrapper);
-                container.scrollTop = container.scrollHeight;
-                return messageWrapper;
+                wrapper.appendChild(bubble);
+                chatBox.appendChild(wrapper);
+                chatBox.scrollTop = chatBox.scrollHeight;
             };
-            
+
             const addCarsDisplay = (headerText, cars) => {
                 const container = document.createElement('div');
                 let html = `<p class="fw-bold">${headerText}</p>`;
                 if (cars && cars.length > 0) {
                     html += '<div class="row row-cols-1 row-cols-md-2 g-4">';
                     cars.forEach(car => {
-                        html += `
-                            <div class="col">
-                                <div class="card h-100">
-                                    <img src="${car.image_url}" class="card-img-top" alt="${car.model}" onerror="this.style.display='none'">
-                                    <div class="card-body">
-                                        <h5 class="card-title">${car.model}</h5>
-                                        <p class="card-text">${car.price}</p>
-                                        <span class="badge bg-success mb-2">В наличност</span>
-                                    </div>
-                                    <div class="card-footer">
-                                        <a href="${car.link}" target="_blank" class="btn btn-sm btn-outline-primary w-100">Вижте повече</a>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
+                        html += `<div class="col"><div class="card h-100 shadow-sm"><img src="${car.image_url}" class="card-img-top" alt="${car.model}" onerror="this.style.display='none'"><div class="card-body"><h5 class="card-title">${car.model}</h5><p class="card-text">${car.price}</p><span class="badge bg-success mb-2">В наличност</span></div><div class="card-footer"><a href="${car.link}" target="_blank" class="btn btn-sm btn-outline-primary w-100">Вижте повече</a></div></div></div>`;
                     });
                     html += '</div>';
                 }
@@ -184,29 +117,21 @@
                 const loadingEl = document.createElement('div');
                 loadingEl.classList.add('message', 'assistant-message', 'd-flex', 'flex-column');
                 loadingEl.id = 'loading-indicator';
-                loadingEl.innerHTML = `
-                    <div class="message-bubble">
-                        <div class="spinner-border spinner-border-sm" role="status">
-                            <span class="visually-hidden">Loading...</span>
-                        </div>
-                    </div>`;
+                loadingEl.innerHTML = `<div class="message-bubble"><div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Loading...</span></div></div>`;
                 chatBox.appendChild(loadingEl);
                 chatBox.scrollTop = chatBox.scrollHeight;
             };
 
             const removeLoadingIndicator = () => {
-                const indicator = document.getElementById('loading-indicator');
-                if (indicator) indicator.remove();
+                document.getElementById('loading-indicator')?.remove();
             };
 
             const sendMessage = async () => {
                 const messageText = chatInput.value.trim();
                 if (messageText === '') return;
-
                 addMessage(messageText, 'user');
                 chatInput.value = '';
                 showLoadingIndicator();
-
                 try {
                     const response = await fetch('/chat', {
                         method: 'POST',
@@ -214,27 +139,20 @@
                         body: JSON.stringify({ message: messageText, thread_id: threadId }),
                     });
                     const data = await response.json();
-                    removeLoadingIndicator();
-
                     if (!response.ok) throw new Error(data.error || 'HTTP error');
-
                     if (data.is_new_thread) {
                         threadId = data.thread_id;
                         await loadThreads();
                     } else {
                         threadId = data.thread_id;
                     }
-
-                    if (data.human_override) {
-                        addMessage(data.response, 'assistant');
-                    } else if (data.cars) {
-                        addCarsDisplay(data.response, data.cars);
-                    } else {
-                        addMessage(data.response, 'assistant');
-                    }
+                    if (data.human_override) addMessage(data.response, 'assistant');
+                    else if (data.cars) addCarsDisplay(data.response, data.cars);
+                    else addMessage(data.response, 'assistant');
                 } catch (error) {
-                    removeLoadingIndicator();
                     addMessage(`Грешка: ${error.message}`, 'assistant');
+                } finally {
+                    removeLoadingIndicator();
                 }
             };
 
@@ -243,55 +161,42 @@
                     const response = await fetch('/api/threads');
                     if (!response.ok) throw new Error('Failed to load threads.');
                     const threads = await response.json();
-
                     threadList.innerHTML = '';
                     if (threads.length === 0) {
-                        threadList.innerHTML = '<a href="#" class="list-group-item list-group-item-action text-muted">Няма предишни чатове.</a>';
+                        threadList.innerHTML = '<a href="#" class="list-group-item list-group-item-action text-muted small">Няма предишни чатове.</a>';
+                        return;
                     }
                     threads.forEach(thread => {
                         const item = document.createElement('a');
                         item.href = '#';
                         item.classList.add('list-group-item', 'list-group-item-action');
                         if (thread.id === threadId) item.classList.add('active');
-
                         const threadDate = new Date(thread.created_at).toLocaleDateString('bg-BG');
-                        item.innerHTML = `<div class="d-flex w-100 justify-content-between">
-                                            <small class="text-muted">${threadDate}</small>
-                                        </div>
-                                        <p class="mb-1 text-truncate">${thread.title}</p>`;
+                        item.innerHTML = `<p class="mb-1 text-truncate fw-bold">${thread.title}</p><small class="text-muted">${threadDate}</small>`;
                         item.dataset.threadId = thread.id;
-                        item.addEventListener('click', (e) => {
-                            e.preventDefault();
-                            selectThread(thread.id);
-                        });
+                        item.addEventListener('click', (e) => { e.preventDefault(); selectThread(thread.id); });
                         threadList.appendChild(item);
                     });
                 } catch (error) {
-                    threadList.innerHTML = '<a href="#" class="list-group-item list-group-item-action text-danger">Грешка при зареждане.</a>';
+                    threadList.innerHTML = '<a href="#" class="list-group-item list-group-item-action text-danger small">Грешка при зареждане.</a>';
                 }
             };
 
             const selectThread = async (id) => {
                 if (threadId === id) return;
-
                 threadId = id;
-                document.querySelectorAll('#thread-list .list-group-item').forEach(el => {
-                    el.classList.toggle('active', el.dataset.threadId === threadId);
-                });
-
+                document.querySelectorAll('#thread-list .list-group-item').forEach(el => el.classList.toggle('active', el.dataset.threadId === threadId));
                 chatBox.innerHTML = '';
                 showLoadingIndicator();
-
                 try {
                     const response = await fetch(`/api/threads/${threadId}/messages`);
                     if (!response.ok) throw new Error('Failed to load messages.');
                     const messages = await response.json();
-
-                    removeLoadingIndicator();
                     messages.forEach(msg => addMessage(msg.content, msg.role));
                 } catch (error) {
-                    removeLoadingIndicator();
                     addMessage('Грешка при зареждане на съобщенията.', 'assistant');
+                } finally {
+                    removeLoadingIndicator();
                 }
             };
 
@@ -303,7 +208,12 @@
                 chatInput.focus();
             };
 
-            // Initial setup
+            historyToggle.addEventListener('click', () => {
+                threadList.style.display = threadList.style.display === 'none' ? 'block' : 'none';
+                historyToggle.querySelector('i').classList.toggle('bi-chevron-down');
+                historyToggle.querySelector('i').classList.toggle('bi-chevron-up');
+            });
+
             sendButton.addEventListener('click', sendMessage);
             chatInput.addEventListener('keypress', (e) => e.key === 'Enter' && sendMessage());
             newChatBtn.addEventListener('click', startNewChat);
