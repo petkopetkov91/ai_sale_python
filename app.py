@@ -111,7 +111,11 @@ def chat():
         supabase.table('chat_messages').insert({"session_id": thread_id, "message": user_message, "is_user": True}).execute()
         client.beta.threads.messages.create(thread_id=thread_id, role="user", content=user_message)
 
-        run = client.beta.threads.runs.create(assistant_id=ASSISTANT_ID, thread_id=thread_id)
+        run = client.beta.threads.runs.create(
+            assistant_id=ASSISTANT_ID,
+            thread_id=thread_id,
+            tool_resources={ "file_search": { "vector_store_ids": [VECTOR_STORE_ID] } }
+        )
         while run.status in ['queued', 'in_progress', 'requires_action']:
             time.sleep(1)
             run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
