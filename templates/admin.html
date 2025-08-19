@@ -188,6 +188,12 @@
         <div id="status-message"></div>
 
         <div class="section">
+            <h2>Синхронизация на чатове</h2>
+            <p>Натиснете бутона, за да качите цялата история на чатовете от базата данни във Vector Store на асистента. Това ще му позволи да използва минали разговори като база знания. Процесът може да отнеме няколко минути.</p>
+            <button id="sync-chats-btn" class="btn btn-primary">Синхронизирай чатове с базата знания</button>
+        </div>
+
+        <div class="section">
             <h2>Списък с качени файлове</h2>
             <div id="file-list-header">
                 <span>Име на файл</span>
@@ -208,6 +214,7 @@
             const fileInputLabelText = document.getElementById('file-input-label-text');
             const fileListContainer = document.getElementById('file-list-container');
             const statusMessage = document.getElementById('status-message');
+            const syncChatsBtn = document.getElementById('sync-chats-btn');
 
             const showStatus = (message, type) => {
                 statusMessage.textContent = message;
@@ -315,6 +322,31 @@
                 } finally {
                     uploadBtn.disabled = false;
                     uploadBtn.textContent = 'Качи';
+                }
+            });
+
+            syncChatsBtn.addEventListener('click', async () => {
+                syncChatsBtn.disabled = true;
+                syncChatsBtn.textContent = 'Синхронизиране...';
+                showStatus('Започва синхронизация. Моля, изчакайте...', 'success');
+
+                try {
+                    const response = await fetch('/api/sync-chats', { method: 'POST' });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(result.error || 'Failed to sync chats.');
+                    }
+
+                    showStatus(result.message || 'Синхронизацията е успешна!', 'success');
+                    // Reload file list to show the new chat history file
+                    loadFiles();
+
+                } catch (error) {
+                    showStatus(error.message, 'error');
+                } finally {
+                    syncChatsBtn.disabled = false;
+                    syncChatsBtn.textContent = 'Синхронизирай чатове с базата знания';
                 }
             });
 

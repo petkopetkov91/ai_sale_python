@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 import json
 import traceback
 import re
+import io
 from supabase import create_client, Client
 
 # Load environment variables
@@ -215,6 +216,53 @@ def delete_file_from_vector_store(file_id):
         client.files.delete(file_id=file_id)
         return jsonify({"success": True})
     except Exception as e: return jsonify({"error": str(e)}), 500
+
+@app.route('/api/sync-chats', methods=['POST'])
+def sync_chats_to_vector_store():
+    if not VECTOR_STORE_ID:
+        return jsonify({"error": "VECTOR_STORE_ID is not configured."}), 500
+
+    try:
+        # 1. Fetch all messages from Supabase
+        response = supabase.table('chat_messages').select('session_id, message, is_user, created_at').order('created_at').execute()
+        messages = response.data
+
+        if not messages:
+            return jsonify({"message": "No new messages to sync."}), 200
+
+        # 2. Format messages into a text file content
+        formatted_content = ""
+        current_session_id = None
+        for msg in messages:
+            if msg['session_id'] != current_session_id:
+                formatted_content += f"\n\n--- НОВ ЧАТ: {msg['session_id']} ---\n"
+                current_session_id = msg['session_id']
+
+            sender = "Потребител" if msg['is_user'] else "Асистент"
+            formatted_content += f"[{msg['created_at']}] {sender}: {msg['message']}\n"
+
+        # 3. Create a file-like object in memory
+        file_content_bytes = formatted_content.encode('utf-8')
+        in_memory_file = io.BytesIO(file_content_bytes)
+
+        # 4. Upload this file to OpenAI
+        uploaded_file = client.files.create(
+            file=("chat_history.txt", in_memory_file),
+            purpose='assistants'
+        )
+
+        # 5. Attach the file to the Vector Store
+        vector_store_file = client.beta.vector_stores.files.create(
+            vector_store_id=VECTOR_STORE_ID,
+            file_id=uploaded_file.id
+        )
+
+        return jsonify({"success": True, "message": f"Successfully synced {len(messages)} messages. File ID: {vector_store_file.id}"})
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == '__main__':
     app.run(port=5000, debug=True)
