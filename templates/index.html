@@ -27,22 +27,6 @@
             flex-direction: column;
         }
         .sidebar-header { padding: 1rem; border-bottom: 1px solid #dee2e6; }
-        .history-toggle {
-            cursor: pointer;
-            padding: 0.75rem;
-            border-top: 1px solid #dee2e6;
-            background-color: #f8f9fa;
-        }
-        .chat-history {
-            flex-grow: 1;
-            min-height: 0; /* Critical for flex-shrink to work */
-            overflow-y: auto;
-            transition: all 0.3s ease-in-out;
-        }
-        .chat-history.collapsed {
-            flex-grow: 0;
-            overflow: hidden;
-        }
         .chat-container { flex-grow: 1; display: flex; flex-direction: column; }
         .chat-header { background-color: var(--bs-primary); color: white; }
         .chat-box { flex-grow: 1; padding: 1rem; overflow-y: auto; background-color: #f1f3f5; }
@@ -50,7 +34,6 @@
         .user-message .message-bubble { background-color: var(--bs-primary); color: white; margin-left: auto; border-bottom-right-radius: 0.25rem; }
         .assistant-message .message-bubble { background-color: #fff; border: 1px solid #e9ecef; color: #212529; border-bottom-left-radius: 0.25rem; }
         .chat-input-group { border-top: 1px solid #dee2e6; padding: 1rem; background-color: #fff; }
-        .list-group-item.active { z-index: 2; color: var(--bs-primary-color); background-color: var(--bs-primary-bg-subtle); border-color: var(--bs-primary-border-subtle); }
     </style>
 </head>
 <body>
@@ -65,11 +48,7 @@
                         <a href="/monitoring" class="text-muted text-decoration-none">Наблюдение</a>
                     </div>
                 </div>
-                <div id="history-toggle" class="history-toggle d-flex justify-content-between align-items-center list-group-item-action">
-                    <span class="fw-bold">История на чатове</span>
-                    <i class="bi bi-chevron-up"></i>
-                </div>
-                <div class="list-group list-group-flush chat-history" id="chat-history-container"></div>
+                <!-- Chat history removed as per user request -->
             </div>
 
             <!-- Chat Container -->
@@ -92,9 +71,7 @@
             const chatBox = document.getElementById('chat-box');
             const chatInput = document.getElementById('chat-input');
             const sendButton = document.getElementById('send-button');
-            const historyContainer = document.getElementById('chat-history-container');
             const newChatBtn = document.getElementById('new-chat-btn');
-            const historyToggle = document.getElementById('history-toggle');
             let threadId = null;
 
             const addMessage = (text, sender) => {
@@ -122,7 +99,7 @@
                 chatBox.appendChild(container);
                 chatBox.scrollTop = chatBox.scrollHeight;
             };
-            
+
             const showLoadingIndicator = () => {
                 const loadingEl = document.createElement('div');
                 loadingEl.classList.add('message', 'assistant-message', 'd-flex', 'flex-column');
@@ -150,12 +127,9 @@
                     });
                     const data = await response.json();
                     if (!response.ok) throw new Error(data.error || 'HTTP error');
-                    if (data.is_new_thread) {
-                        threadId = data.thread_id;
-                        await loadThreads();
-                    } else {
-                        threadId = data.thread_id;
-                    }
+
+                    threadId = data.thread_id; // Keep track of the session
+
                     if (data.human_override) addMessage(data.response, 'assistant');
                     else if (data.cars) addCarsDisplay(data.response, data.cars);
                     else addMessage(data.response, 'assistant');
@@ -166,71 +140,18 @@
                 }
             };
 
-            const loadThreads = async () => {
-                try {
-                    const response = await fetch('/api/threads');
-                    if (!response.ok) throw new Error('Failed to load threads.');
-                    const threads = await response.json();
-                    historyContainer.innerHTML = '';
-                    if (threads.length === 0) {
-                        historyContainer.innerHTML = '<a href="#" class="list-group-item list-group-item-action text-muted small">Няма предишни чатове.</a>';
-                        return;
-                    }
-                    threads.forEach(thread => {
-                        const item = document.createElement('a');
-                        item.href = '#';
-                        item.classList.add('list-group-item', 'list-group-item-action');
-                        if (thread.id === threadId) item.classList.add('active');
-                        const threadDate = new Date(thread.created_at).toLocaleDateString('bg-BG');
-                        item.innerHTML = `<p class="mb-1 text-truncate fw-bold">${thread.title}</p><small class="text-muted">${threadDate}</small>`;
-                        item.dataset.threadId = thread.id;
-                        item.addEventListener('click', (e) => { e.preventDefault(); selectThread(thread.id); });
-                        historyContainer.appendChild(item);
-                    });
-                } catch (error) {
-                    historyContainer.innerHTML = '<a href="#" class="list-group-item list-group-item-action text-danger small">Грешка при зареждане.</a>';
-                }
-            };
-
-            const selectThread = async (id) => {
-                if (threadId === id) return;
-                threadId = id;
-                document.querySelectorAll('#chat-history-container .list-group-item').forEach(el => el.classList.toggle('active', el.dataset.threadId === threadId));
-                chatBox.innerHTML = '';
-                showLoadingIndicator();
-                try {
-                    const response = await fetch(`/api/threads/${threadId}/messages`);
-                    if (!response.ok) throw new Error('Failed to load messages.');
-                    const messages = await response.json();
-                    messages.forEach(msg => addMessage(msg.content, msg.role));
-                } catch (error) {
-                    addMessage('Грешка при зареждане на съобщенията.', 'assistant');
-                } finally {
-                    removeLoadingIndicator();
-                }
-            };
-
             const startNewChat = () => {
                 threadId = null;
-                document.querySelectorAll('#chat-history-container .list-group-item.active').forEach(el => el.classList.remove('active'));
                 chatBox.innerHTML = '';
                 addMessage('Здравейте! Как мога да Ви помогна?', 'assistant');
                 chatInput.focus();
             };
-
-            historyToggle.addEventListener('click', () => {
-                historyContainer.classList.toggle('collapsed');
-                const icon = historyToggle.querySelector('i');
-                icon.classList.toggle('bi-chevron-down');
-                icon.classList.toggle('bi-chevron-up');
-            });
 
             sendButton.addEventListener('click', sendMessage);
             chatInput.addEventListener('keypress', (e) => e.key === 'Enter' && sendMessage());
             newChatBtn.addEventListener('click', startNewChat);
 
             startNewChat();
-            loadThreads();
         });
     </script>
 </body>
