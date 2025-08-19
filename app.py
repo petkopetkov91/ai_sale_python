@@ -8,8 +8,6 @@ from dotenv import load_dotenv
 import json
 import traceback
 import re
-import io
-from supabase import create_client, Client
 
 # Load environment variables
 load_dotenv()
@@ -18,14 +16,33 @@ load_dotenv()
 app = Flask(__name__)
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 ASSISTANT_ID = os.getenv("OPENAI_ASSISTANT_ID")
+VECTOR_STORE_ID = os.getenv("VECTOR_STORE_ID") # Load VECTOR_STORE_ID
 
-# Supabase Client
-supabase_url = os.getenv("SUPABASE_URL")
-supabase_key = os.getenv("SUPABASE_ANON_KEY")
-supabase: Client = create_client(supabase_url, supabase_key)
+# --- Assistant Initialization Check ---
+# This block ensures the assistant is correctly linked to the vector store.
+# It runs once on startup.
+if all([ASSISTANT_ID, VECTOR_STORE_ID, os.getenv("OPENAI_API_KEY")]):
+    try:
+        print("Checking assistant configuration...")
+        assistant = client.beta.assistants.retrieve(assistant_id=ASSISTANT_ID)
 
-# Vector Store ID
-VECTOR_STORE_ID = os.getenv("VECTOR_STORE_ID")
+        vs_attached = False
+        if assistant.tool_resources and assistant.tool_resources.file_search:
+            if VECTOR_STORE_ID in assistant.tool_resources.file_search.vector_store_ids:
+                vs_attached = True
+
+        if not vs_attached:
+            print(f"Attaching Vector Store {VECTOR_STORE_ID} to Assistant {ASSISTANT_ID}...")
+            client.beta.assistants.update(
+                assistant_id=ASSISTANT_ID,
+                tool_resources={"file_search": {"vector_store_ids": [VECTOR_STORE_ID]}},
+            )
+            print("✅ Assistant updated successfully!")
+        else:
+            print("✅ Assistant configuration is correct.")
+
+    except Exception as e:
+        print(f"❌ ERROR: Could not verify or update assistant configuration: {e}")
 
 def parse_price(price_str):
     """Extracts the price in BGN from a string like '35 858,96 € / 70 134,03 лв.'"""
@@ -93,175 +110,64 @@ def chat():
         data = request.json
         thread_id = data.get("thread_id")
         user_message = data.get("message")
-        is_new_thread = not thread_id
 
-        if thread_id:
-            try:
-                session_res = supabase.table('chat_sessions').select('is_human_controlled').eq('session_id', thread_id).single().execute()
-                if session_res.data and session_res.data.get('is_human_controlled'):
-                    supabase.table('chat_messages').insert({"session_id": thread_id, "message": user_message, "is_user": True}).execute()
-                    return jsonify({"response": "Този чат се обслужва от оператор.", "thread_id": thread_id, "is_new_thread": is_new_thread, "human_override": True})
-            except Exception:
-                pass
-
-        if is_new_thread:
+        if not thread_id:
             thread = client.beta.threads.create()
             thread_id = thread.id
-            supabase.table('chat_sessions').insert({"session_id": thread_id, "is_human_controlled": False}).execute()
 
-        supabase.table('chat_messages').insert({"session_id": thread_id, "message": user_message, "is_user": True}).execute()
         client.beta.threads.messages.create(thread_id=thread_id, role="user", content=user_message)
+        run = client.beta.threads.runs.create(assistant_id=ASSISTANT_ID, thread_id=thread_id)
+        print(f"DEBUG: Created run {run.id}. Waiting...")
 
-        run = client.beta.threads.runs.create(
-            assistant_id=ASSISTANT_ID,
-            thread_id=thread_id
-        )
         while run.status in ['queued', 'in_progress', 'requires_action']:
-            time.sleep(1)
             run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
+            print(f"DEBUG: Current run status: {run.status}")
+
             if run.status == 'requires_action':
                 tool_call = run.required_action.submit_tool_outputs.tool_calls[0]
                 if tool_call.function.name == "get_available_cars":
-                    arguments = json.loads(tool_call.function.arguments)
-                    car_data = get_available_cars(model_filter=arguments.get('model_filter'))
-                    supabase.table('chat_messages').insert({"session_id": thread_id, "message": car_data['summary'], "is_user": False}).execute()
-                    client.beta.threads.runs.submit_tool_outputs(thread_id=thread_id, run_id=run.id, tool_outputs=[{"tool_call_id": tool_call.id, "output": "Function executed."}])
-                    return jsonify({"response": car_data['summary'], "cars": car_data['cars'], "thread_id": thread_id, "is_new_thread": is_new_thread})
 
+                    # 1. Get the actual car data
+                    arguments = json.loads(tool_call.function.arguments)
+                    model_name = arguments.get('model_filter')
+                    car_data_result = get_available_cars(model_filter=model_name)
+
+                    # 2. Submit a simple confirmation to OpenAI to close the run
+                    try:
+                        client.beta.threads.runs.submit_tool_outputs(
+                            thread_id=thread_id,
+                            run_id=run.id,
+                            tool_outputs=[{
+                                "tool_call_id": tool_call.id,
+                                "output": f"Function executed. Found {len(car_data_result['cars'])} cars."
+                            }]
+                        )
+                    except Exception as e:
+                        print(f"WARNING: Could not submit dummy tool output to close run: {e}")
+
+                    # 3. Immediately return the real data to the frontend
+                    return jsonify({
+                        "response": car_data_result['summary'],
+                        "cars": car_data_result['cars'],
+                        "thread_id": thread_id
+                    })
+
+            time.sleep(1)
+
+        # This part handles general queries (from Retrieval)
         if run.status == 'completed':
             messages = client.beta.threads.messages.list(thread_id=thread_id, order="desc", limit=1)
             response_text = messages.data[0].content[0].text.value
-            supabase.table('chat_messages').insert({"session_id": thread_id, "message": response_text, "is_user": False}).execute()
-            return jsonify({"response": response_text, "thread_id": thread_id, "is_new_thread": is_new_thread})
+            return jsonify({"response": response_text, "thread_id": thread_id})
         else:
-            return jsonify({"response": f"Грешка: {run.status}", "thread_id": thread_id, "is_new_thread": is_new_thread})
+            return jsonify({"response": f"Грешка: Обработката спря със статус '{run.status}'.", "thread_id": thread_id})
+
+    except openai.BadRequestError as e:
+        print(f"ERROR: Caught a BadRequestError: {e}")
+        return jsonify({"error": "Системата все още обработва предишната заявка. Моля, изчакайте и опитайте отново."}), 429
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"error": f"Сървърна грешка: {e}"}), 500
+        return jsonify({"error": f"Възникна критична грешка на сървъра: {e}"}), 500
 
-# --- API Routes for Chat History ---
-@app.route('/api/threads', methods=['GET'])
-def get_threads():
-    try:
-        response = supabase.table('chat_sessions').select('*').order('created_at', desc=True).execute()
-        sessions = response.data
-        threads_with_titles = []
-        for session in sessions:
-            msg_response = supabase.table('chat_messages').select('message').eq('session_id', session['session_id']).eq('is_user', True).order('created_at', desc=False).limit(1).execute()
-            if msg_response.data:
-                threads_with_titles.append({
-                    "id": session['session_id'],
-                    "title": msg_response.data[0]['message'],
-                    "created_at": session['created_at'],
-                    "is_human_controlled": session.get('is_human_controlled', False)
-                })
-        return jsonify(threads_with_titles)
-    except Exception as e:
-        return jsonify({"error": "Failed to retrieve threads."}), 500
-
-@app.route('/api/threads/<string:thread_id>/messages', methods=['GET'])
-def get_thread_messages(thread_id):
-    try:
-        response = supabase.table('chat_messages').select('message, is_user').eq('session_id', thread_id).order('created_at').execute()
-        return jsonify([{"role": "user" if msg['is_user'] else "assistant", "content": msg['message']} for msg in response.data])
-    except Exception as e:
-        return jsonify({"error": "Failed to retrieve messages."}), 500
-
-# --- Admin & Monitoring Routes ---
-@app.route('/admin')
-def admin():
-    return render_template('admin.html')
-
-@app.route('/monitoring')
-def monitoring():
-    return render_template('monitoring.html')
-
-@app.route('/api/monitoring/send-message', methods=['POST'])
-def handle_admin_message():
-    data = request.json
-    try:
-        supabase.table('chat_sessions').update({'is_human_controlled': True}).eq('session_id', data["thread_id"]).execute()
-        supabase.table('chat_messages').insert({"session_id": data["thread_id"], "message": data["message"], "is_user": False}).execute()
-        return jsonify({"success": True})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/api/vector-store/files', methods=['GET'])
-def list_vector_store_files():
-    if not VECTOR_STORE_ID: return jsonify({"error": "VECTOR_STORE_ID not configured."}), 500
-    try:
-        vector_store_files = client.beta.vector_stores.files.list(vector_store_id=VECTOR_STORE_ID)
-        files_with_details = [client.files.retrieve(f.id) for f in vector_store_files.data]
-        return jsonify([{"id": f.id, "filename": f.filename, "created_at": f.created_at} for f in files_with_details])
-    except Exception as e: return jsonify({"error": str(e)}), 500
-
-@app.route('/api/vector-store/files', methods=['POST'])
-def upload_file_to_vector_store():
-    if not VECTOR_STORE_ID: return jsonify({"error": "VECTOR_STORE_ID not configured."}), 500
-    if 'file' not in request.files: return jsonify({"error": "No file part."}), 400
-    file = request.files['file']
-    if file.filename == '': return jsonify({"error": "No selected file."}), 400
-    try:
-        uploaded_file = client.files.create(file=(file.filename, file.read()), purpose='assistants')
-        vs_file = client.beta.vector_stores.files.create(vector_store_id=VECTOR_STORE_ID, file_id=uploaded_file.id)
-        return jsonify({"success": True, "file_id": vs_file.id, "filename": uploaded_file.filename})
-    except Exception as e: return jsonify({"error": str(e)}), 500
-
-@app.route('/api/vector-store/files/<string:file_id>', methods=['DELETE'])
-def delete_file_from_vector_store(file_id):
-    if not VECTOR_STORE_ID: return jsonify({"error": "VECTOR_STORE_ID not configured."}), 500
-    try:
-        client.beta.vector_stores.files.delete(vector_store_id=VECTOR_STORE_ID, file_id=file_id)
-        client.files.delete(file_id=file_id)
-        return jsonify({"success": True})
-    except Exception as e: return jsonify({"error": str(e)}), 500
-
-@app.route('/api/sync-chats', methods=['POST'])
-def sync_chats_to_vector_store():
-    if not VECTOR_STORE_ID:
-        return jsonify({"error": "VECTOR_STORE_ID is not configured."}), 500
-
-    try:
-        # 1. Fetch all messages from Supabase
-        response = supabase.table('chat_messages').select('session_id, message, is_user, created_at').order('created_at').execute()
-        messages = response.data
-
-        if not messages:
-            return jsonify({"message": "No new messages to sync."}), 200
-
-        # 2. Format messages into a text file content
-        formatted_content = ""
-        current_session_id = None
-        for msg in messages:
-            if msg['session_id'] != current_session_id:
-                formatted_content += f"\n\n--- НОВ ЧАТ: {msg['session_id']} ---\n"
-                current_session_id = msg['session_id']
-
-            sender = "Потребител" if msg['is_user'] else "Асистент"
-            formatted_content += f"[{msg['created_at']}] {sender}: {msg['message']}\n"
-
-        # 3. Create a file-like object in memory
-        file_content_bytes = formatted_content.encode('utf-8')
-        in_memory_file = io.BytesIO(file_content_bytes)
-
-        # 4. Upload this file to OpenAI
-        uploaded_file = client.files.create(
-            file=("chat_history.txt", in_memory_file),
-            purpose='assistants'
-        )
-
-        # 5. Attach the file to the Vector Store
-        vector_store_file = client.beta.vector_stores.files.create(
-            vector_store_id=VECTOR_STORE_ID,
-            file_id=uploaded_file.id
-        )
-
-        return jsonify({"success": True, "message": f"Successfully synced {len(messages)} messages. File ID: {vector_store_file.id}"})
-
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
-
-
-if __name__ == '__main__':
-    app.run(port=5000, debug=True)
+#if __name__ == '__main__':
+ #   app.run(port=5000, debug=True)
