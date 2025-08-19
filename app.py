@@ -164,42 +164,6 @@ def get_available_cars(model_filter=None):
         summary = "Възникна грешка при извличането на данните за автомобили."
         return {"summary": summary, "cars": []}
 
-def search_document_vectors(query: str, top_k: int = 3):
-    """
-    Searches for relevant documents in Supabase vector store based on a query.
-    """
-    print(f"DEBUG: Calling search_document_vectors with query: '{query}'")
-    try:
-        # 1. Генериране на embedding за заявката
-        embedding_response = client.embeddings.create(
-            input=[query],
-            model="text-embedding-3-small" # Моделът може да се променя
-        )
-        query_embedding = embedding_response.data[0].embedding
-        print("DEBUG: Successfully created embedding for the query.")
-
-        # 2. Извикване на RPC функция в Supabase за търсене на вектори
-        # Предполагаме, че имате функция `match_documents` във вашата база данни
-        response = supabase.rpc('match_documents', {
-            'query_embedding': query_embedding,
-            'match_threshold': 0.78, # Праг на сходство
-            'match_count': top_k
-        }).execute()
-
-        if response.data:
-            print(f"DEBUG: Found {len(response.data)} matching documents from Supabase.")
-            # 3. Форматиране на резултатите
-            context = "\n".join([f"- {doc['content']}" for doc in response.data])
-            return f"Намерена е следната информация от базата данни с документи:\n{context}"
-        else:
-            print("DEBUG: No matching documents found in Supabase.")
-            return "Не е намерена информация по тази тема в базата данни с документи."
-
-    except Exception as e:
-        print(f"ERROR: Грешка при търсене в документите: {e}")
-        traceback.print_exc()
-        return "Възникна грешка при търсенето в базата данни с документи."
-
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -271,6 +235,7 @@ def chat():
 
         # Стартираме run
         tools = [
+            {"type": "retrieval"},
             {
                 "type": "function",
                 "function": {
@@ -287,30 +252,13 @@ def chat():
                         "required": []
                     }
                 }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "search_document_vectors",
-                    "description": "Търси в база данни с документи за отговори на общи въпроси, които не са свързани с наличността на автомобили. Използвай за въпроси относно услуги, гаранции, политики и друга обща информация.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "query": {
-                                "type": "string",
-                                "description": "Въпросът на потребителя, който да се използва за търсене в базата данни."
-                            }
-                        },
-                        "required": ["query"]
-                    }
-                }
             }
         ]
 
         instructions = """
         Ти си полезен асистент на Peugeot.
-        - Ако потребителят пита за налични автомобили, цени или конкретни модели, ВИНАГИ използвай инструмента `get_available_cars`.
-        - За ВСИЧКИ ДРУГИ въпроси (напр. относно услуги, гаранции, политики, обща информация), ВИНАГИ използвай инструмента `search_document_vectors`, за да търсиш отговор в базата данни с документи.
+        - За въпроси относно налични автомобили, цени или конкретни модели, ВИНАГИ използвай инструмента `get_available_cars`.
+        - За ВСИЧКИ ДРУГИ въпроси (напр. относно услуги, гаранции, политики, технически спецификации), първо потърси отговор в предоставените файлове чрез твоя `retrieval` инструмент.
         - Отговаряй на български език.
         """
 
@@ -339,24 +287,13 @@ def chat():
                     
                     if tool_call.function.name == "get_available_cars":
                         arguments = json.loads(tool_call.function.arguments)
-                        print(f"DEBUG: Function arguments for get_available_cars: {arguments}")
+                        print(f"DEBUG: Function arguments: {arguments}")
                         
                         car_data_result = get_available_cars(model_filter=arguments.get('model_filter'))
                         
                         tool_outputs.append({
                             "tool_call_id": tool_call.id,
                             "output": json.dumps(car_data_result, ensure_ascii=False)
-                        })
-
-                    elif tool_call.function.name == "search_document_vectors":
-                        arguments = json.loads(tool_call.function.arguments)
-                        print(f"DEBUG: Function arguments for search_document_vectors: {arguments}")
-
-                        output = search_document_vectors(query=arguments.get('query'))
-
-                        tool_outputs.append({
-                            "tool_call_id": tool_call.id,
-                            "output": output
                         })
 
                 # Изпращаме резултатите обратно към Assistant-а
