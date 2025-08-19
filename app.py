@@ -114,8 +114,7 @@ def chat():
 
         run = client.beta.threads.runs.create(
             assistant_id=ASSISTANT_ID,
-            thread_id=thread_id,
-            tool_resources={ "file_search": { "vector_store_ids": [VECTOR_STORE_ID] } }
+            thread_id=thread_id
         )
         while run.status in ['queued', 'in_progress', 'requires_action']:
             time.sleep(1)
