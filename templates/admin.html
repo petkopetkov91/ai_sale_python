@@ -1,288 +1,148 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="bg">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin - File Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --peugeot-blue: #003da5;
-            --light-grey: #f4f6f8;
-            --border-grey: #e9ecef;
-            --text-dark: #343a40;
-            --text-light: #fff;
-            --danger-red: #dc3545;
-            --success-green: #28a745;
-            --white: #fff;
+            --bs-primary-rgb: 0, 61, 165;
+            --bs-body-font-family: 'Inter', sans-serif;
+            --bs-body-bg: #f8f9fa;
         }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--light-grey);
-            color: var(--text-dark);
-            margin: 0;
-            padding: 2rem;
+            font-family: var(--bs-body-font-family);
         }
         .container {
-            max-width: 900px;
-            margin: 0 auto;
-            background-color: var(--white);
-            padding: 2.5rem;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            max-width: 960px;
         }
-        h1, h2 {
-            color: var(--peugeot-blue);
-            border-bottom: 1px solid var(--border-grey);
-            padding-bottom: 0.75rem;
-            margin-top: 0;
-        }
-        h2 {
-            font-size: 1.5rem;
-            margin-top: 2rem;
-        }
-        .section {
-            margin-bottom: 2.5rem;
-        }
-        .btn {
-            padding: 0.6rem 1.25rem;
-            border: none;
-            border-radius: 8px;
-            font-size: 0.95em;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s ease-in-out;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            text-decoration: none;
-        }
-        .btn-primary {
-            background-color: var(--peugeot-blue);
-            color: var(--text-light);
-        }
-        .btn-primary:hover {
-            background-color: #002c8f;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 10px rgba(0, 61, 165, 0.2);
-        }
-        .btn-primary:disabled {
-            background-color: #a1a1a1;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-        .btn-danger {
-            background-color: var(--danger-red);
-            color: var(--text-light);
-            font-size: 0.85em;
-        }
-        .btn-danger:hover {
-            background-color: #c82333;
-        }
-        #upload-form {
-            background-color: #f8f9fa;
-            padding: 1.5rem;
-            border-radius: 8px;
-            border: 1px solid var(--border-grey);
-            display: flex;
-            gap: 1rem;
-            align-items: center;
-        }
-        #file-input-wrapper {
-            position: relative;
-            flex-grow: 1;
-        }
-        #file-input {
-            opacity: 0;
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            cursor: pointer;
-        }
-        .file-input-label {
-            background-color: var(--white);
-            border: 2px dashed var(--border-grey);
-            border-radius: 8px;
-            padding: 0.75rem 1rem;
-            text-align: center;
-            transition: border-color 0.2s;
-        }
-        #file-input:hover + .file-input-label,
-        #file-input:focus + .file-input-label {
-            border-color: var(--peugeot-blue);
-        }
-        #file-list-header {
-            display: grid;
-            grid-template-columns: 3fr 1fr 1fr;
-            font-weight: 600;
-            padding: 0.5rem 1rem;
-            border-bottom: 2px solid var(--border-grey);
-            color: #6c757d;
-        }
-        .file-item {
-            display: grid;
-            grid-template-columns: 3fr 1fr 1fr;
-            align-items: center;
-            padding: 1rem;
-            border-bottom: 1px solid var(--border-grey);
-            transition: background-color 0.2s;
-        }
-        .file-item:hover {
-            background-color: #f8f9fa;
-        }
-        .file-item:last-child {
-            border-bottom: none;
-        }
-        .file-info .filename {
-            font-weight: 500;
-            word-break: break-all;
-        }
-        #status-message {
-            padding: 1rem;
-            border-radius: 8px;
-            margin-top: 1rem;
-            display: none;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-        #status-message.show {
-            display: block;
-            opacity: 1;
-        }
-        #status-message.success {
-            background-color: #d4edda;
-            color: #155724;
-        }
-        #status-message.error {
-            background-color: #f8d7da;
-            color: #721c24;
-        }
-        .nav-link {
-            display: inline-block;
-            margin-bottom: 2rem;
-            color: var(--peugeot-blue);
-            text-decoration: none;
-            font-weight: 500;
-        }
-        .nav-link:hover {
-            text-decoration: underline;
+        .card-header {
+            background-color: transparent;
         }
     </style>
 </head>
-<body>
+<body class="py-5">
     <div class="container">
-        <a href="/" class="nav-link">&larr; Обратно към чата</a>
-        <h1>Администрация на файлове</h1>
+        <header class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="mb-0 text-primary">Административен панел</h1>
+            <a href="/" class="btn btn-outline-secondary">← Обратно към чата</a>
+        </header>
 
-        <div class="section">
-            <h2>Качване на нов файл</h2>
-            <form id="upload-form">
-                <div id="file-input-wrapper">
-                    <input type="file" id="file-input" name="file" required>
-                    <div class="file-input-label" id="file-input-label-text">Натиснете, за да изберете файл...</div>
-                </div>
-                <button type="submit" id="upload-btn" class="btn btn-primary">Качи</button>
-            </form>
-        </div>
+        <div id="status-message-container"></div>
 
-        <div id="status-message"></div>
-
-        <div class="section">
-            <h2>Синхронизация на чатове</h2>
-            <p>Натиснете бутона, за да качите цялата история на чатовете от базата данни във Vector Store на асистента. Това ще му позволи да използва минали разговори като база знания. Процесът може да отнеме няколко минути.</p>
-            <button id="sync-chats-btn" class="btn btn-primary">Синхронизирай чатове с базата знания</button>
-        </div>
-
-        <div class="section">
-            <h2>Списък с качени файлове</h2>
-            <div id="file-list-header">
-                <span>Име на файл</span>
-                <span>Дата на качване</span>
-                <span>Действия</span>
+        <div class="card mb-4">
+            <div class="card-header">
+                <h2 class="h5 mb-0">Синхронизация на чатове</h2>
             </div>
-            <div id="file-list-container">
-                <p>Зареждане...</p>
+            <div class="card-body">
+                <p class="card-text text-muted">Качете цялата история на чатовете от базата данни във Vector Store на асистента. Това ще му позволи да използва минали разговори като база знания.</p>
+                <button id="sync-chats-btn" class="btn btn-secondary">Синхронизирай чатове</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2 class="h5 mb-0">Управление на файлове</h2>
+            </div>
+            <div class="card-body">
+                <form id="upload-form" class="mb-4">
+                    <div class="input-group">
+                        <input type="file" class="form-control" id="file-input" name="file" required>
+                        <button type="submit" id="upload-btn" class="btn btn-primary">Качи файл</button>
+                    </div>
+                </form>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Име на файл</th>
+                                <th>Дата на качване</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody id="file-list-tbody">
+                            <!-- Files will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="file-list-loader" class="text-center p-4" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const uploadForm = document.getElementById('upload-form');
             const uploadBtn = document.getElementById('upload-btn');
             const fileInput = document.getElementById('file-input');
-            const fileInputLabelText = document.getElementById('file-input-label-text');
-            const fileListContainer = document.getElementById('file-list-container');
-            const statusMessage = document.getElementById('status-message');
+            const fileListTbody = document.getElementById('file-list-tbody');
+            const statusContainer = document.getElementById('status-message-container');
             const syncChatsBtn = document.getElementById('sync-chats-btn');
+            const loader = document.getElementById('file-list-loader');
 
-            const showStatus = (message, type) => {
-                statusMessage.textContent = message;
-                statusMessage.className = `show ${type}`;
-                setTimeout(() => {
-                    statusMessage.className = '';
-                }, 5000);
+            const showStatus = (message, type = 'success') => {
+                const alertHtml = `<div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                                      ${message}
+                                      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                   </div>`;
+                statusContainer.innerHTML = alertHtml;
             };
 
-            fileInput.addEventListener('change', () => {
-                if (fileInput.files.length > 0) {
-                    fileInputLabelText.textContent = fileInput.files[0].name;
-                } else {
-                    fileInputLabelText.textContent = 'Натиснете, за да изберете файл...';
-                }
-            });
-
             const loadFiles = async () => {
-                fileListContainer.innerHTML = '<p>Зареждане...</p>';
+                loader.style.display = 'block';
+                fileListTbody.innerHTML = '';
                 try {
                     const response = await fetch('/api/vector-store/files');
-                    if (!response.ok) {
-                        const err = await response.json();
-                        throw new Error(err.error || 'Failed to fetch files.');
-                    }
-                    const files = await response.json();
+                    if (!response.ok) throw new Error((await response.json()).error || 'Failed to fetch files.');
 
-                    fileListContainer.innerHTML = '';
+                    const files = await response.json();
                     if (files.length === 0) {
-                        fileListContainer.innerHTML = '<p style="padding: 1rem;">Няма качени файлове.</p>';
+                        fileListTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Няма качени файлове.</td></tr>';
                     } else {
                         files.sort((a, b) => b.created_at - a.created_at);
                         files.forEach(file => {
-                            const item = document.createElement('div');
-                            item.className = 'file-item';
-                            item.innerHTML = `
-                                <div class="file-info">
-                                    <span class="filename">${file.filename}</span>
-                                </div>
-                                <span>${new Date(file.created_at * 1000).toLocaleDateString()}</span>
-                                <button class="btn btn-danger" data-file-id="${file.id}">Изтрий</button>
+                            const row = fileListTbody.insertRow();
+                            row.innerHTML = `
+                                <td>${file.filename}</td>
+                                <td>${new Date(file.created_at * 1000).toLocaleString('bg-BG')}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-danger" data-file-id="${file.id}">Изтрий</button>
+                                </td>
                             `;
-                            fileListContainer.appendChild(item);
                         });
                     }
                 } catch (error) {
-                    fileListContainer.innerHTML = `<p style="padding: 1rem; color: red;">${error.message}</p>`;
+                    showStatus(error.message, 'danger');
+                } finally {
+                    loader.style.display = 'none';
                 }
             };
 
-            fileListContainer.addEventListener('click', async (e) => {
-                if (e.target.matches('.btn-danger')) {
+            fileListTbody.addEventListener('click', async (e) => {
+                if (e.target.matches('.btn-outline-danger')) {
                     const fileId = e.target.dataset.fileId;
-                    if (confirm('Сигурни ли сте, че искате да изтриете този файл? Това действие е необратимо.')) {
-                        e.target.disabled = true;
-                        e.target.textContent = 'Триене...';
+                    if (confirm('Сигурни ли сте, че искате да изтриете този файл?')) {
+                        const button = e.target;
+                        button.disabled = true;
+                        button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
                         try {
                             const response = await fetch(`/api/vector-store/files/${fileId}`, { method: 'DELETE' });
-                            if (!response.ok) {
-                                const err = await response.json();
-                                throw new Error(err.error || 'Failed to delete file.');
-                            }
+                            if (!response.ok) throw new Error((await response.json()).error || 'Failed to delete file.');
                             showStatus('Файлът е успешно изтрит.', 'success');
                             loadFiles();
                         } catch (error) {
-                            showStatus(error.message, 'error');
-                            e.target.disabled = false;
-                            e.target.textContent = 'Изтрий';
+                            showStatus(error.message, 'danger');
+                            button.disabled = false;
+                            button.textContent = 'Изтрий';
                         }
                     }
                 }
@@ -290,63 +150,44 @@
 
             uploadForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                if (!fileInput.files[0]) {
-                    showStatus('Моля, изберете файл за качване.', 'error');
-                    return;
-                }
+                if (!fileInput.files[0]) return;
 
                 const formData = new FormData();
                 formData.append('file', fileInput.files[0]);
 
                 uploadBtn.disabled = true;
-                uploadBtn.textContent = 'Качване...';
+                uploadBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Качване...';
 
                 try {
-                    const response = await fetch('/api/vector-store/files', {
-                        method: 'POST',
-                        body: formData,
-                    });
-
-                    if (!response.ok) {
-                        const err = await response.json();
-                        throw new Error(err.error || 'Failed to upload file.');
-                    }
-
+                    const response = await fetch('/api/vector-store/files', { method: 'POST', body: formData });
+                    if (!response.ok) throw new Error((await response.json()).error || 'Failed to upload file.');
                     const result = await response.json();
                     showStatus(`Файлът "${result.filename}" е успешно качен.`, 'success');
                     uploadForm.reset();
-                    fileInputLabelText.textContent = 'Натиснете, за да изберете файл...';
                     loadFiles();
                 } catch (error) {
-                    showStatus(error.message, 'error');
+                    showStatus(error.message, 'danger');
                 } finally {
                     uploadBtn.disabled = false;
-                    uploadBtn.textContent = 'Качи';
+                    uploadBtn.innerHTML = 'Качи файл';
                 }
             });
 
             syncChatsBtn.addEventListener('click', async () => {
                 syncChatsBtn.disabled = true;
-                syncChatsBtn.textContent = 'Синхронизиране...';
-                showStatus('Започва синхронизация. Моля, изчакайте...', 'success');
+                syncChatsBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Синхронизиране...';
 
                 try {
                     const response = await fetch('/api/sync-chats', { method: 'POST' });
                     const result = await response.json();
-
-                    if (!response.ok) {
-                        throw new Error(result.error || 'Failed to sync chats.');
-                    }
-
+                    if (!response.ok) throw new Error(result.error || 'Failed to sync chats.');
                     showStatus(result.message || 'Синхронизацията е успешна!', 'success');
-                    // Reload file list to show the new chat history file
                     loadFiles();
-
                 } catch (error) {
-                    showStatus(error.message, 'error');
+                    showStatus(error.message, 'danger');
                 } finally {
                     syncChatsBtn.disabled = false;
-                    syncChatsBtn.textContent = 'Синхронизирай чатове с базата знания';
+                    syncChatsBtn.textContent = 'Синхронизирай чатове';
                 }
             });
 
