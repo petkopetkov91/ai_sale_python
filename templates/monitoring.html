@@ -27,7 +27,7 @@
             flex-direction: column;
         }
         .sidebar-header { padding: 1rem; border-bottom: 1px solid #dee2e6; background-color: #e9ecef; }
-        .chat-history { flex-grow: 1; overflow-y: auto; }
+        .chat-history { flex-grow: 1; min-height: 0; overflow-y: auto; }
         .list-group-item.active { z-index: 2; color: var(--bs-primary-color); background-color: var(--bs-primary-bg-subtle); border-color: var(--bs-primary-border-subtle); }
         .chat-container { flex-grow: 1; display: flex; flex-direction: column; }
         .chat-header { background-color: #6c757d; color: white; }
@@ -35,7 +35,7 @@
         .message-bubble { max-width: 80%; padding: 0.75rem 1rem; border-radius: 1.25rem; margin-bottom: 0.5rem; width: fit-content; line-height: 1.5; }
         .user-message .message-bubble { background-color: #e9ecef; color: #212529; margin-left: auto; border-bottom-right-radius: 0.25rem; }
         .assistant-message .message-bubble { background-color: #fff; border: 1px solid #e9ecef; color: #212529; border-bottom-left-radius: 0.25rem; }
-        .admin-message .message-bubble { border-left: 3px solid var(--bs-primary); font-style: italic; }
+        .admin-message .message-bubble { border-left: 3px solid var(--bs-primary); font-style: italic; background-color: #e0e7ff; }
         .chat-input-group { border-top: 1px solid #dee2e6; padding: 1rem; background-color: #fff; }
         #chat-placeholder { display: flex; justify-content: center; align-items: center; height: 100%; color: #6c757d; font-size: 1.2rem; text-align: center; }
     </style>
@@ -170,7 +170,9 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ thread_id: activeThreadId, message: messageText }),
                     });
-                    loadThreads();
+                    const thread = threadsCache.find(t => t.id === activeThreadId);
+                    if(thread) thread.is_human_controlled = true;
+                    renderThreads(threadsCache);
                 } catch (error) {
                     addMessage('Грешка при изпращане на съобщението.', 'admin');
                 }
