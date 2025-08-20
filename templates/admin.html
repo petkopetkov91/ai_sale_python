@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <title>Администрация</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+        }
+        h1 { color: #003da5; }
+        ul { list-style: none; padding: 0; }
+        li { margin: 8px 0; }
+        button { margin-left: 8px; }
+    </style>
+</head>
+<body>
+    <h1>Управление на файлове</h1>
+    <form id="upload-form">
+        <input type="file" id="file-input" name="file" required />
+        <button type="submit">Качи</button>
+    </form>
+    <ul id="files"></ul>
+    <script>
+        async function loadFiles() {
+            const res = await fetch('/api/admin/files');
+            const files = await res.json();
+            const list = document.getElementById('files');
+            list.innerHTML = '';
+            files.forEach(f => {
+                const li = document.createElement('li');
+                const sizeKb = Math.round((f.bytes || 0) / 1024);
+                li.textContent = `${f.filename} (${sizeKb} KB)`;
+                const delBtn = document.createElement('button');
+                delBtn.textContent = 'Изтрий';
+                delBtn.addEventListener('click', async () => {
+                    await fetch(`/api/admin/files/${f.id}`, { method: 'DELETE' });
+                    loadFiles();
+                });
+                li.appendChild(delBtn);
+                list.appendChild(li);
+            });
+        }
+        document.getElementById('upload-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const input = document.getElementById('file-input');
+            if (!input.files.length) return;
+            const formData = new FormData();
+            formData.append('file', input.files[0]);
+            await fetch('/api/admin/files', { method: 'POST', body: formData });
+            input.value = '';
+            loadFiles();
+        });
+        loadFiles();
+    </script>
+</body>
+</html>
