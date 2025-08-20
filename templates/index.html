@@ -278,7 +278,10 @@
             function addCarsDisplay(headerText, cars) {
                 const messageElement = document.createElement('div');
                 messageElement.classList.add('message', 'assistant-message');
-                let html = `<div class="cars-header">${headerText}</div>`;
+                let html = '';
+                if (headerText && headerText.trim() !== '') {
+                    html += `<div class="cars-header">${headerText}</div>`;
+                }
                 if (cars && cars.length > 0) {
                     html += '<div class="cars-container">';
                     cars.forEach(car => {
