@@ -315,10 +315,14 @@ def chat():
             response_text = messages.data[0].content[0].text.value
             print(f"DEBUG: Assistant response: {response_text[:100]}...")
 
+            # Ако имаме данни за коли, не показваме текстов отговор
+            if car_data_result and car_data_result.get('cars'):
+                response_text = ""
+
             # Записваме отговора в базата
             supabase.table('chat_messages').insert({
-                "session_id": thread_id, 
-                "message": response_text, 
+                "session_id": thread_id,
+                "message": response_text,
                 "is_user": False
             }).execute()
 
@@ -328,7 +332,7 @@ def chat():
                 "thread_id": thread_id,
                 "is_new_thread": is_new_thread
             }
-            
+
             if car_data_result and car_data_result.get('cars'):
                 response_data["cars"] = car_data_result['cars']
                 print(f"DEBUG: Including {len(car_data_result['cars'])} cars in response")
