@@ -143,7 +143,7 @@ def get_available_cars(model_filter=None):
             return {"summary": summary, "cars": []}
         
         if model_filter:
-            summary = f"Ето налични автомобили от {model_filter}:"
+            summary = f"Ето налични автомобили {model_filter}:"
         else:
             summary = "Ето налични автомобили:"
         

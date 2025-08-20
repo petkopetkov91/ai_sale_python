@@ -338,7 +338,6 @@
                     } catch (e) {
                         throw new Error('Сървърът върна невалиден отговор.');
                     }
-                    loadingIndicator.remove();
 
                     if (!response.ok) throw new Error(data.error || `HTTP error! Status: ${response.status}`);
 
@@ -356,8 +355,9 @@
                     }
                 } catch (error) {
                     console.error('Error details:', error);
-                    loadingIndicator.remove();
                     addMessage(`Грешка: ${error.message}`, 'assistant');
+                } finally {
+                    loadingIndicator.remove();
                 }
             }
 
