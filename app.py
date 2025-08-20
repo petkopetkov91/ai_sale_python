@@ -25,6 +25,10 @@ supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_ANON_KEY")
 supabase: Client = create_client(supabase_url, supabase_key)
 
+# Cache for car data to reduce XML fetches
+CAR_CACHE = {"timestamp": 0, "cars": []}
+CACHE_TTL = 300  # seconds
+
 
 def parse_price(price_str):
     """Extracts the price in BGN from a string like '35 858,96 € / 70 134,03 лв.'"""
@@ -45,88 +49,90 @@ def parse_price(price_str):
     print(f"DEBUG: Не е намерена цена в лева в: {price_str}")
     return float('inf')
 
+
+def fetch_all_cars():
+    """Fetches and caches car data from the XML feed."""
+    now = time.time()
+    if CAR_CACHE["cars"] and now - CAR_CACHE["timestamp"] < CACHE_TTL:
+        print("DEBUG: Using cached car data")
+        return CAR_CACHE["cars"]
+
+    url = "https://sale.peugeot.bg/ecommerce/fb/product_feed.xml"
+    print(f"DEBUG: Fetching XML from: {url}")
+
+    response = requests.get(url, timeout=15)
+    response.raise_for_status()
+    print(f"DEBUG: XML response status: {response.status_code}")
+
+    root = ET.fromstring(response.content)
+    ns = {'g': 'http://base.google.com/ns/1.0'}
+
+    items = root.findall('.//channel/item')
+    print(f"DEBUG: Намерени общо {len(items)} елемента в XML")
+
+    all_cars = []
+    for item in items:
+        availability_elem = item.find('g:availability', ns)
+        if availability_elem is not None and availability_elem.text == 'in stock':
+            title_elem = item.find('g:title', ns)
+            description_elem = item.find('g:description', ns)
+            link_elem = item.find('g:link', ns)
+            image_elem = item.find('g:image_link', ns)
+
+            title = title_elem.text.strip() if title_elem is not None else "N/A"
+            description = description_elem.text.strip() if description_elem is not None else "N/A"
+            link = link_elem.text if link_elem is not None else "#"
+            image_url = image_elem.text if image_elem is not None else ""
+
+            car_data = {
+                "model": title,
+                "price": description,
+                "link": link,
+                "image_url": image_url
+            }
+            all_cars.append(car_data)
+
+    CAR_CACHE["timestamp"] = now
+    CAR_CACHE["cars"] = all_cars
+    print(f"DEBUG: Събрани данни за {len(all_cars)} автомобила")
+    return all_cars
+
+
 def get_available_cars(model_filter=None):
-    """
-    Fetches, filters, sorts by price, and returns the top 2 cheapest cars as a Python dictionary.
-    """
+    """Fetches, filters, sorts by price, and returns the top 2 cheapest cars."""
     print(f"DEBUG: Calling get_available_cars function. Filter: {model_filter}")
-    
+
     try:
-        url = "https://sale.peugeot.bg/ecommerce/fb/product_feed.xml"
-        print(f"DEBUG: Fetching XML from: {url}")
-        
-        response = requests.get(url, timeout=15)
-        response.raise_for_status()
-        print(f"DEBUG: XML response status: {response.status_code}")
-        
-        # Парсиране на XML
-        root = ET.fromstring(response.content)
-        all_cars = []
-        ns = {'g': 'http://base.google.com/ns/1.0'}
-        
-        # Проверяваме колко елемента има общо
-        items = root.findall('.//channel/item')
-        print(f"DEBUG: Намерени общо {len(items)} елемента в XML")
-        
-        in_stock_count = 0
-        for item in items:
-            availability_elem = item.find('g:availability', ns)
-            if availability_elem is not None:
-                availability = availability_elem.text
-                
-                if availability == 'in stock':
-                    in_stock_count += 1
-                    
-                    # Извличаме данните
-                    title_elem = item.find('g:title', ns)
-                    description_elem = item.find('g:description', ns)
-                    link_elem = item.find('g:link', ns)
-                    image_elem = item.find('g:image_link', ns)
-                    
-                    title = title_elem.text.strip() if title_elem is not None else "N/A"
-                    description = description_elem.text.strip() if description_elem is not None else "N/A"
-                    link = link_elem.text if link_elem is not None else "#"
-                    image_url = image_elem.text if image_elem is not None else ""
-                    
-                    print(f"DEBUG: Намерен автомобил: {title}")
-                    
-                    car_data = {
-                        "model": title,
-                        "price": description,
-                        "link": link,
-                        "image_url": image_url
-                    }
-                    all_cars.append(car_data)
-        
-        print(f"DEBUG: Общо налични автомобили: {in_stock_count}")
-        print(f"DEBUG: Събрани данни за {len(all_cars)} автомобила")
-        
+        all_cars = fetch_all_cars()
+        print(f"DEBUG: Общо налични автомобили: {len(all_cars)}")
+
         # Филтриране по модел ако е зададен
         if model_filter:
             print(f"DEBUG: Филтриране по модел: {model_filter}")
-            filtered_cars = []
-            for car in all_cars:
-                if model_filter.lower() in car['model'].lower():
-                    filtered_cars.append(car)
-                    print(f"DEBUG: Модел {car['model']} отговаря на филтъра")
-            
+            filtered_cars = [car for car in all_cars if model_filter.lower() in car['model'].lower()]
             print(f"DEBUG: След филтриране останаха {len(filtered_cars)} автомобила")
         else:
-            filtered_cars = all_cars
-        
-        # Добавяме числова цена за сортиране
+            filtered_cars = list(all_cars)
+
+        # Добавяме числова цена за сортиране без да променяме кешираните данни
+        processed_cars = []
         for car in filtered_cars:
-            car['numeric_price'] = parse_price(car['price'])
-            print(f"DEBUG: {car['model']} -> numeric_price: {car['numeric_price']}")
-        
+            car_copy = car.copy()
+            car_copy['numeric_price'] = parse_price(car_copy['price'])
+            print(f"DEBUG: {car_copy['model']} -> numeric_price: {car_copy['numeric_price']}")
+            processed_cars.append(car_copy)
+
         # Сортираме по цена
-        sorted_cars = sorted(filtered_cars, key=lambda x: x['numeric_price'])
-        
+        sorted_cars = sorted(processed_cars, key=lambda x: x['numeric_price'])
+
         # Вземаме първите 2
-        final_cars = sorted_cars[:2]
-        
+        final_cars = [
+            {k: v for k, v in car.items() if k != 'numeric_price'}
+            for car in sorted_cars[:2]
+        ]
+
         print(f"DEBUG: Финални {len(final_cars)} автомобила за връщане")
-        
+
         if not final_cars:
             if model_filter:
                 summary = f"За съжаление, в момента няма налични автомобили, отговарящи на вашето търсене за '{model_filter}'."
@@ -136,7 +142,10 @@ def get_available_cars(model_filter=None):
             print(f"DEBUG: Няма намерени автомобили. Summary: {summary}")
             return {"summary": summary, "cars": []}
         
-        summary = f"Намерени са {len(final_cars)} автомобила, които отговарят на вашето търсене:"
+        if model_filter:
+            summary = f"Ето налични автомобили от {model_filter}:"
+        else:
+            summary = "Ето налични автомобили:"
         
         # Премахваме numeric_price от финалния резултат
         for car in final_cars:
@@ -315,9 +324,9 @@ def chat():
             response_text = messages.data[0].content[0].text.value
             print(f"DEBUG: Assistant response: {response_text[:100]}...")
 
-            # Ако имаме данни за коли, не показваме текстов отговор
+            # Ако имаме данни за коли, показваме кратко описание
             if car_data_result and car_data_result.get('cars'):
-                response_text = ""
+                response_text = car_data_result.get('summary', "Ето налични автомобили:")
 
             # Записваме отговора в базата
             supabase.table('chat_messages').insert({
