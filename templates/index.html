@@ -463,10 +463,12 @@
 
                     loading.remove();
                     messages.forEach(msg => {
-                        // This logic needs to be updated when Supabase is integrated
-                        // to handle the `is_user` flag instead of `role`.
                         const role = msg.is_user ? 'user' : 'assistant';
-                        addMessage(msg.content, role);
+                        if (msg.cars) {
+                            addCarsDisplay(msg.message, msg.cars);
+                        } else {
+                            addMessage(msg.message, role);
+                        }
                     });
                 } catch (error) {
                     console.error('Error loading messages:', error);
