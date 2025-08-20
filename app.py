@@ -19,6 +19,7 @@ app = Flask(__name__)
 # OpenAI Client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 ASSISTANT_ID = os.getenv("OPENAI_ASSISTANT_ID")
+VECTOR_STORE_ID = os.getenv("OPENAI_VECTOR_STORE_ID")
 
 # Supabase Client
 supabase_url = os.getenv("SUPABASE_URL")
@@ -176,6 +177,63 @@ def get_available_cars(model_filter=None):
 @app.route('/')
 def index():
     return render_template('index.html')
+
+
+@app.route('/admin')
+def admin():
+    return render_template('admin.html')
+
+
+@app.route('/api/admin/files', methods=['GET'])
+def list_admin_files():
+    try:
+        if not VECTOR_STORE_ID:
+            return jsonify([])
+        files = client.beta.vector_stores.files.list(vector_store_id=VECTOR_STORE_ID)
+        results = []
+        for f in files.data:
+            file_id = getattr(f, 'file_id', None) or getattr(f, 'id', None)
+            try:
+                info = client.files.retrieve(file_id)
+                results.append({
+                    'id': info.id,
+                    'filename': info.filename,
+                    'bytes': info.bytes
+                })
+            except Exception:
+                results.append({'id': file_id, 'filename': 'unknown', 'bytes': 0})
+        return jsonify(results)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/admin/files', methods=['POST'])
+def upload_admin_file():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    file = request.files['file']
+    try:
+        uploaded = client.files.create(file=file, purpose='assistants')
+        client.beta.vector_stores.files.create(
+            vector_store_id=VECTOR_STORE_ID,
+            file_id=uploaded.id
+        )
+        return jsonify({'id': uploaded.id}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/admin/files/<file_id>', methods=['DELETE'])
+def delete_admin_file(file_id):
+    try:
+        client.beta.vector_stores.files.delete(
+            vector_store_id=VECTOR_STORE_ID,
+            file_id=file_id
+        )
+        client.files.delete(file_id)
+        return jsonify({'status': 'deleted'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/threads', methods=['GET'])
 def get_threads():

@@ -62,6 +62,22 @@
         #new-chat-btn:hover {
             background-color: #002c8f;
         }
+        #admin-btn {
+            margin-top: 8px;
+            background-color: #6c757d;
+            color: var(--text-light);
+            border: none;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 1em;
+            font-weight: 500;
+            width: 100%;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        #admin-btn:hover {
+            background-color: #5a6268;
+        }
         #thread-list {
             flex-grow: 1;
             overflow-y: auto;
@@ -237,6 +253,7 @@
         <div id="sidebar">
             <div id="sidebar-header">
                 <button id="new-chat-btn">+ Нов чат</button>
+                <button id="admin-btn">Администрация</button>
             </div>
             <div id="thread-list"></div>
         </div>
@@ -257,6 +274,7 @@
             const sendButton = document.getElementById('send-button');
             const threadList = document.getElementById('thread-list');
             const newChatBtn = document.getElementById('new-chat-btn');
+            const adminBtn = document.getElementById('admin-btn');
 
             let threadId = null;
 
@@ -264,6 +282,7 @@
             sendButton.addEventListener('click', sendMessage);
             chatInput.addEventListener('keypress', (e) => e.key === 'Enter' && sendMessage());
             newChatBtn.addEventListener('click', startNewChat);
+            adminBtn.addEventListener('click', () => window.location.href = '/admin');
 
             // --- Core Functions ---
             function addMessage(text, sender) {
