@@ -19,7 +19,9 @@ app = Flask(__name__)
 # OpenAI Client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 ASSISTANT_ID = os.getenv("OPENAI_ASSISTANT_ID")
-VECTOR_STORE_ID = os.getenv("OPENAI_VECTOR_STORE_ID")
+# Render задава идентификатора на вектор сториджа чрез променливата
+# "VECTOR_STORE_ID", затова я използваме директно тук.
+VECTOR_STORE_ID = os.getenv("VECTOR_STORE_ID")
 
 # Supabase Client
 supabase_url = os.getenv("SUPABASE_URL")
