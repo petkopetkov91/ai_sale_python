@@ -9,6 +9,7 @@ import json
 import traceback
 import re
 from supabase import create_client, Client
+from datetime import datetime
 
 # Load environment variables
 load_dotenv()
@@ -17,7 +18,8 @@ load_dotenv()
 app = Flask(__name__)
 
 # OpenAI Client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=OPENAI_API_KEY)
 ASSISTANT_ID = os.getenv("OPENAI_ASSISTANT_ID")
 # Render задава идентификатора на вектор сториджа чрез променливата
 # "VECTOR_STORE_ID", затова я използваме директно тук. Ако променливата
@@ -196,25 +198,59 @@ def list_admin_files():
     returned instead of causing a server error. This keeps the admin page
     functional even when OpenAI integration is unavailable.
     """
-    if not VECTOR_STORE_ID:
+    if not VECTOR_STORE_ID or not OPENAI_API_KEY:
         # No vector store configured – return empty list gracefully
         return jsonify([])
 
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "OpenAI-Beta": "assistants=v2",
+    }
+
     try:
-        files = client.beta.vector_stores.files.list(vector_store_id=VECTOR_STORE_ID)
+        resp = requests.get(
+            f"https://api.openai.com/v1/vector_stores/{VECTOR_STORE_ID}/files",
+            headers=headers,
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
         results = []
-        for f in files.data:
-            file_id = getattr(f, 'file_id', None) or getattr(f, 'id', None)
+        for vf in data.get("data", []):
+            file_id = vf.get("id")
             try:
-                info = client.files.retrieve(file_id)
-                results.append({
-                    'id': info.id,
-                    'filename': info.filename,
-                    'bytes': info.bytes
-                })
+                file_resp = requests.get(
+                    f"https://api.openai.com/v1/files/{file_id}",
+                    headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+                    timeout=30,
+                )
+                file_resp.raise_for_status()
+                info = file_resp.json()
+                created = info.get("created_at")
+                created_iso = (
+                    datetime.utcfromtimestamp(created).isoformat() if created else None
+                )
+                results.append(
+                    {
+                        "id": info.get("id"),
+                        "filename": info.get("filename"),
+                        "bytes": info.get("bytes"),
+                        "status": vf.get("status"),
+                        "usage_bytes": vf.get("usage_bytes", 0),
+                        "created_at": created_iso,
+                    }
+                )
             except Exception:
-                # If fetching file info fails, include placeholder values
-                results.append({'id': file_id, 'filename': 'unknown', 'bytes': 0})
+                results.append(
+                    {
+                        "id": file_id,
+                        "filename": "unknown",
+                        "bytes": 0,
+                        "status": vf.get("status"),
+                        "usage_bytes": vf.get("usage_bytes", 0),
+                        "created_at": None,
+                    }
+                )
         return jsonify(results)
     except Exception as e:
         # Log the error and return an empty list instead of 500
@@ -224,7 +260,7 @@ def list_admin_files():
 
 @app.route('/api/admin/files', methods=['POST'])
 def upload_admin_file():
-    if not VECTOR_STORE_ID:
+    if not VECTOR_STORE_ID or not OPENAI_API_KEY:
         return jsonify({'error': 'Vector store not configured'}), 503
 
     if 'file' not in request.files:
@@ -232,27 +268,57 @@ def upload_admin_file():
 
     file = request.files['file']
     try:
-        uploaded = client.files.create(file=file, purpose='assistants')
-        client.beta.vector_stores.files.create(
-            vector_store_id=VECTOR_STORE_ID,
-            file_id=uploaded.id
+        headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"}
+        files = {"file": (file.filename, file.stream, file.mimetype)}
+        data = {"purpose": "assistants"}
+        upload_resp = requests.post(
+            "https://api.openai.com/v1/files",
+            headers=headers,
+            files=files,
+            data=data,
+            timeout=60,
         )
-        return jsonify({'id': uploaded.id}), 201
+        upload_resp.raise_for_status()
+        uploaded = upload_resp.json()
+
+        vs_headers = {
+            "Authorization": f"Bearer {OPENAI_API_KEY}",
+            "OpenAI-Beta": "assistants=v2",
+        }
+        requests.post(
+            f"https://api.openai.com/v1/vector_stores/{VECTOR_STORE_ID}/files",
+            headers=vs_headers,
+            json={"file_id": uploaded["id"]},
+            timeout=30,
+        ).raise_for_status()
+        return jsonify({'id': uploaded["id"]}), 201
     except Exception as e:
+        print(f"ERROR uploading file: {e}")
         return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/admin/files/<file_id>', methods=['DELETE'])
 def delete_admin_file(file_id):
-    if not VECTOR_STORE_ID:
+    if not VECTOR_STORE_ID or not OPENAI_API_KEY:
         return jsonify({'error': 'Vector store not configured'}), 503
 
     try:
-        client.beta.vector_stores.files.delete(
-            vector_store_id=VECTOR_STORE_ID,
-            file_id=file_id
-        )
-        client.files.delete(file_id)
+        headers_vs = {
+            "Authorization": f"Bearer {OPENAI_API_KEY}",
+            "OpenAI-Beta": "assistants=v2",
+        }
+        requests.delete(
+            f"https://api.openai.com/v1/vector_stores/{VECTOR_STORE_ID}/files/{file_id}",
+            headers=headers_vs,
+            timeout=30,
+        ).raise_for_status()
+
+        requests.delete(
+            f"https://api.openai.com/v1/files/{file_id}",
+            headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+            timeout=30,
+        ).raise_for_status()
+
         return jsonify({'status': 'deleted'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
