@@ -267,15 +267,15 @@ def get_threads():
 @app.route('/api/threads/<string:thread_id>/messages', methods=['GET'])
 def get_thread_messages(thread_id):
     try:
-        response = supabase.table('chat_messages').select('message, is_user').eq('session_id', thread_id).order('created_at', desc=False).execute()
-
-        formatted_messages = []
-        for msg in response.data:
-            formatted_messages.append({
-                "role": "user" if msg['is_user'] else "assistant",
-                "content": msg['message']
-            })
-        return jsonify(formatted_messages)
+        # Взимаме и запазените карти, ако има такива
+        response = (
+            supabase.table('chat_messages')
+            .select('message, is_user, cars')
+            .eq('session_id', thread_id)
+            .order('created_at', desc=False)
+            .execute()
+        )
+        return jsonify(response.data)
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": "Failed to retrieve messages from database."}), 500
@@ -386,12 +386,15 @@ def chat():
             if car_data_result and car_data_result.get('cars'):
                 response_text = car_data_result.get('summary', "Ето налични автомобили:")
 
-            # Записваме отговора в базата
-            supabase.table('chat_messages').insert({
+            # Записваме отговора в базата и съхраняваме картите за колите
+            db_record = {
                 "session_id": thread_id,
                 "message": response_text,
-                "is_user": False
-            }).execute()
+                "is_user": False,
+            }
+            if car_data_result and car_data_result.get('cars'):
+                db_record["cars"] = car_data_result["cars"]
+            supabase.table('chat_messages').insert(db_record).execute()
 
             # Ако имаме данни за коли, ги включваме в отговора
             response_data = {
