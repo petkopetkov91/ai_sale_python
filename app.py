@@ -188,9 +188,17 @@ def admin():
 
 @app.route('/api/admin/files', methods=['GET'])
 def list_admin_files():
+    """Return list of files in the configured vector store.
+
+    If no vector store or API credentials are configured, an empty list is
+    returned instead of causing a server error. This keeps the admin page
+    functional even when OpenAI integration is unavailable.
+    """
+    if not VECTOR_STORE_ID:
+        # No vector store configured – return empty list gracefully
+        return jsonify([])
+
     try:
-        if not VECTOR_STORE_ID:
-            return jsonify([])
         files = client.beta.vector_stores.files.list(vector_store_id=VECTOR_STORE_ID)
         results = []
         for f in files.data:
@@ -203,16 +211,23 @@ def list_admin_files():
                     'bytes': info.bytes
                 })
             except Exception:
+                # If fetching file info fails, include placeholder values
                 results.append({'id': file_id, 'filename': 'unknown', 'bytes': 0})
         return jsonify(results)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        # Log the error and return an empty list instead of 500
+        print(f"ERROR listing admin files: {e}")
+        return jsonify([])
 
 
 @app.route('/api/admin/files', methods=['POST'])
 def upload_admin_file():
+    if not VECTOR_STORE_ID:
+        return jsonify({'error': 'Vector store not configured'}), 503
+
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
+
     file = request.files['file']
     try:
         uploaded = client.files.create(file=file, purpose='assistants')
@@ -227,6 +242,9 @@ def upload_admin_file():
 
 @app.route('/api/admin/files/<file_id>', methods=['DELETE'])
 def delete_admin_file(file_id):
+    if not VECTOR_STORE_ID:
+        return jsonify({'error': 'Vector store not configured'}), 503
+
     try:
         client.beta.vector_stores.files.delete(
             vector_store_id=VECTOR_STORE_ID,
